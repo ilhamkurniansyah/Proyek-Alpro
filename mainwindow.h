@@ -1,14 +1,26 @@
-//Ilham kurniansyah
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
 #include <QMainWindow>
 #include <QFrame>
 #include <QDate>
-#include <QListWidget>
 #include <QLabel>
 #include <QComboBox>
+#include <QListWidget>
 #include <QGridLayout>
+#include <QTimer>
+#include <QSet>
+#include <Qtime>
+#include <Qtimer>
+
+struct TaskData
+{
+    QString title;
+    QString category;
+    QString priority;
+    QDate reminderDate;
+    QTime reminderTime;
+};
 
 class MainWindow : public QMainWindow
 {
@@ -16,9 +28,13 @@ class MainWindow : public QMainWindow
 
 public:
     explicit MainWindow(QWidget *parent = nullptr);
-    ~MainWindow();
+
+protected:
+    bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
+    QTimer *timer;
+    QVector<QTime> taskTimes;
     QDate currentDate;
 
     QLabel *totalLabel;
@@ -27,11 +43,15 @@ private:
     QLabel *lateLabel;
     QLabel *monthLabel;
 
-    QListWidget *taskList;
     QComboBox *categoryBox;
     QComboBox *priorityBox;
-
+    QListWidget *taskList;
     QGridLayout *calendarGrid;
+
+    QList<TaskData> tasks;
+
+    QTimer *notificationTimer;
+    QSet<QString> notifiedTasks;
 
     QFrame* createStatCard(QLabel *&numberLabel, const QString &text, const QString &color);
 
@@ -40,6 +60,9 @@ private:
     void updateStats();
     void buildCalendar();
     void clearCalendar();
+    void addTaskToCalendarBox(QVBoxLayout *boxLayout, const QDate &date);
+    void checkNotifications();
+    void showTasksByDate(const QDate &date);
 };
 
 #endif
