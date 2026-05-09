@@ -13,6 +13,7 @@ qt_add_executable(ayam
     main.cpp
     mainwindow.cpp
     mainwindow.h
+    tambahan.h tambahan.cpp
 )
 
 target_link_libraries(ayam PRIVATE Qt6::Widgets)

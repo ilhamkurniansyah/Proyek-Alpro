@@ -1,41 +1,41 @@
-#include "mainwindow.h"
+#include "mainwindow.h" //menghubungkan ke mainwindow.h
 
-#include <QWidget>
-#include <QLabel>
-#include <QPushButton>
-#include <QComboBox>
-#include <QFrame>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QGridLayout>
-#include <QMessageBox>
-#include <QListWidget>
-#include <QDate>
-#include <QLineEdit>
-#include <QAbstractItemView>
-#include <QDialog>
-#include <QDateEdit>
-#include <QFormLayout>
-#include <QDialogButtonBox>
-#include <QScrollArea>
-#include <QApplication>
-#include <QEvent>
-#include <QVariant>
+#include <QWidget> //dasar
+#include <QLabel> //teks
+#include <QPushButton> //tombol
+#include <QComboBox> //drop down
+#include <QFrame> //frae
+#include <QVBoxLayout> //vertikal
+#include <QHBoxLayout> //horizontal
+#include <QGridLayout> //tabel
+#include <QMessageBox> //pop up pesan
+#include <QListWidget> //daftarn tugas
+#include <QDate> //mnyimpan tgl
+#include <QLineEdit> //input teks
+#include <QAbstractItemView> //mengatur cara item di list/table dipilih atau ditampilkan
+#include <QDialog> //membuat jendela popup/dialog.
+#include <QDateEdit> //Widget input tanggal.
+#include <QFormLayout> //Layout khusus form.
+#include <QDialogButtonBox> //Widget khusus tombol dialog.
+#include <QScrollArea> //supaya kalender bisa discroll
+#include <QApplication> //bunyi notif
+#include <QEvent> //mendeteksi klik
+#include <QVariant> //menyimpan data generic (tanggal di kalender)
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), currentDate(QDate::currentDate())
 {
-    setWindowTitle("To-Do List Saya");
-    resize(1450, 850);
+    setWindowTitle("To-Do List Saya"); //judul window
+    resize(1450, 850); //ukuran
 
     QWidget *root = new QWidget(this);
-    root->setObjectName("root");
+    root->setObjectName("root"); //wodget utama (wadah)
 
-    QVBoxLayout *mainLayout = new QVBoxLayout(root);
+    QVBoxLayout *mainLayout = new QVBoxLayout(root); //smuanya di susun vertikal
     mainLayout->setContentsMargins(18, 14, 18, 14);
     mainLayout->setSpacing(14);
 
-    QLabel *title = new QLabel("📝 To-Do List Saya");
+    QLabel *title = new QLabel("📝 To-Do List Saya"); //judul apk
     title->setObjectName("title");
 
     QLabel *subtitle = new QLabel("Kelola tugas Anda dengan mudah dan efisien");
@@ -44,7 +44,7 @@ MainWindow::MainWindow(QWidget *parent)
     mainLayout->addWidget(title);
     mainLayout->addWidget(subtitle);
 
-    QHBoxLayout *statLayout = new QHBoxLayout;
+    QHBoxLayout *statLayout = new QHBoxLayout; //statistik tugas
     statLayout->setSpacing(18);
 
     statLayout->addWidget(createStatCard(totalLabel, "Total Tugas", "#2563EB"));
@@ -66,7 +66,10 @@ MainWindow::MainWindow(QWidget *parent)
 
     QPushButton *addButton = new QPushButton("+  Tambah Tugas");
     QPushButton *deleteButton = new QPushButton("☷  Hapus Tugas");
+    QPushButton *doneButton = new QPushButton("✓  Selesai");
     QPushButton *notifButton = new QPushButton("🔔  Cek Notifikasi");
+
+    doneButton->setObjectName("doneBtn");
 
     addButton->setObjectName("addBtn");
     deleteButton->setObjectName("listBtn");
@@ -74,8 +77,11 @@ MainWindow::MainWindow(QWidget *parent)
 
     buttonLayout->addWidget(addButton);
     buttonLayout->addWidget(deleteButton);
+    buttonLayout->addWidget(doneButton);
     buttonLayout->addWidget(notifButton);
     buttonLayout->addStretch();
+
+    connect(doneButton, &QPushButton::clicked, this, &MainWindow::markTaskDone);
 
     QHBoxLayout *filterLayout = new QHBoxLayout;
     filterLayout->setSpacing(14);
@@ -170,7 +176,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     notificationTimer = new QTimer(this);
     connect(notificationTimer, &QTimer::timeout, this, &MainWindow::checkNotifications);
-    notificationTimer->start(60000);
+    notificationTimer->start(1000);
 
     buildCalendar();
     updateStats();
@@ -320,7 +326,7 @@ MainWindow::MainWindow(QWidget *parent)
     )");
 }
 
-QFrame* MainWindow::createStatCard(QLabel *&numberLabel, const QString &text, const QString &color)
+QFrame* MainWindow::createStatCard(QLabel *&numberLabel, const QString &text, const QString &color) //menyimpan angka dan nama statistik
 {
     QFrame *card = new QFrame;
     card->setObjectName("card");
@@ -362,11 +368,15 @@ void MainWindow::addTask()
     dateInput->setDate(QDate::currentDate());
     dateInput->setDisplayFormat("dd MMMM yyyy");
 
+    QTimeEdit *timeInput = new QTimeEdit;
+    timeInput->setTime(QTime::currentTime());
+
     QFormLayout *form = new QFormLayout;
     form->addRow("Nama Tugas:", taskInput);
     form->addRow("Kategori:", categoryInput);
     form->addRow("Prioritas:", priorityInput);
     form->addRow("Tanggal Pengingat:", dateInput);
+    form->addRow("Jam Pengingat:", timeInput);
 
     QDialogButtonBox *buttonBox = new QDialogButtonBox(
         QDialogButtonBox::Ok | QDialogButtonBox::Cancel
@@ -391,17 +401,15 @@ void MainWindow::addTask()
         task.category = categoryInput->currentText();
         task.priority = priorityInput->currentText();
         task.reminderDate = dateInput->date();
+        task.reminderTime = timeInput->time();
 
         tasks.append(task);
 
         taskList->addItem(
             task.title + " | " +
-            task.category + " | " +
-            task.priority + " | " +
-            task.reminderDate.toString("dd MMM yyyy")
+            task.reminderDate.toString("dd MMM") + " " +
+            task.reminderTime.toString("HH:mm")
             );
-
-        currentDate = QDate(task.reminderDate.year(), task.reminderDate.month(), 1);
 
         updateStats();
         buildCalendar();
@@ -427,20 +435,56 @@ void MainWindow::deleteTask()
     buildCalendar();
 }
 
+void MainWindow::markTaskDone()
+{
+    int row = taskList->currentRow();
+    if (row < 0) {
+        QMessageBox::warning(this, "Peringatan", "Pilih tugas dulu!");
+        return;
+    }
+
+    // Ambil data tugas yang dipilih dan ubah jadi Selesai
+    tasks[row].isDone = true;
+
+    // Ubah tampilan di list agar terlihat sudah selesai
+    QListWidgetItem *item = taskList->item(row);
+    item->setText("✓ " + tasks[row].title + " (Selesai)");
+    item->setForeground(Qt::gray);
+
+    updateStats();   // Agar angka di kartu "Selesai" bertambah
+    buildCalendar(); // Agar di kalender juga terupdate
+}
+
 void MainWindow::updateStats()
 {
     int total = tasks.size();
+    int done = 0;
     int late = 0;
+    QDate today = QDate::currentDate();
+
+    QDateTime currentDateTime = QDateTime::currentDateTime();
 
     for (const TaskData &task : tasks) {
-        if (task.reminderDate < QDate::currentDate()) {
+
+        if (task.isDone) {
+            done++;
+        }
+
+        QDateTime taskDateTime(
+            task.reminderDate,
+            task.reminderTime
+            );
+
+        if (!task.isDone &&
+            taskDateTime < currentDateTime) {
+
             late++;
         }
     }
 
     totalLabel->setText(QString::number(total));
-    doneLabel->setText("0");
-    notDoneLabel->setText(QString::number(total));
+    doneLabel->setText(QString::number(done));
+    notDoneLabel->setText(QString::number(total - done));
     lateLabel->setText(QString::number(late));
 }
 
@@ -578,32 +622,35 @@ void MainWindow::buildCalendar()
 
 void MainWindow::checkNotifications()
 {
-    QDate today = QDate::currentDate();
+    QDateTime current = QDateTime::currentDateTime();
+    QDate today = current.date();
+    QTime now = current.time();
     bool found = false;
 
     for (const TaskData &task : tasks) {
-        if (task.reminderDate == today) {
-            QString key = task.title + today.toString("yyyyMMdd");
+        // Cek: Tanggal sama? Jam sama? Menit sama?
+        if (task.reminderDate == today &&
+            task.reminderTime.hour() == now.hour() &&
+            task.reminderTime.minute() == now.minute()) {
 
-            if (!notifiedTasks.contains(key)) {
-                QApplication::beep();
+            // Buat ID unik (nama + tanggal + jam + menit) supaya notif tidak muncul berkali-kali di menit yang sama
+            QString notifKey = task.title + current.toString("yyyyMMddHHmm");
 
-                QMessageBox::information(
-                    this,
-                    "🔔 Pengingat Tugas",
-                    "Tugas hari ini:\n\n" + task.title +
-                        "\nKategori: " + task.category +
-                        "\nPrioritas: " + task.priority
-                    );
+            if (!notifiedTasks.contains(notifKey)) {
+                QApplication::beep(); // Suara bip
 
-                notifiedTasks.insert(key);
+                QMessageBox *msg = new QMessageBox(this);
+                msg->setWindowTitle("🔔 Pengingat Tugas");
+                msg->setText("Waktunya mengerjakan tugas!\n\n" + task.title);
+                msg->setInformativeText("Jam: " + task.reminderTime.toString("HH:mm") +
+                                        "\nKategori: " + task.category);
+                msg->setIcon(QMessageBox::Information);
+                msg->show(); // Muncul di layar tanpa menghentikan program
+
+                notifiedTasks.insert(notifKey);
                 found = true;
             }
         }
-    }
-
-    if (!found) {
-        QMessageBox::information(this, "Notifikasi", "Tidak ada tugas baru untuk hari ini.");
     }
 }
 
