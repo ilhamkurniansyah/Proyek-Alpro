@@ -32,4 +32,5 @@ mainwindow.cpp
 mainwindow.h
 tambahan.cpp
 tambahan.h
-CMakeLists.txt
+ayam.pro
+
