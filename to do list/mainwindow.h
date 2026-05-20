@@ -4,14 +4,21 @@
 #include <QMainWindow>
 #include <QFrame>
 #include <QDate>
+#include <QTime>
 #include <QLabel>
 #include <QComboBox>
 #include <QListWidget>
 #include <QGridLayout>
 #include <QTimer>
 #include <QSet>
-#include <Qtime>
-#include <Qtimer>
+#include <QList>
+#include <QString>
+#include <QVBoxLayout>
+#include <QEvent>
+#include <QLineEdit>
+#include <QProgressBar>
+#include <QMediaPlayer>
+#include <QAudioOutput>
 
 struct TaskData
 {
@@ -34,37 +41,66 @@ protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
-    QTimer *timer;
-    QVector<QTime> taskTimes;
+    QList<TaskData> tasks;
+    QSet<QString> notifiedTasks;
     QDate currentDate;
+
+    bool darkMode = false;
 
     QLabel *totalLabel;
     QLabel *doneLabel;
     QLabel *notDoneLabel;
     QLabel *lateLabel;
     QLabel *monthLabel;
+    QLabel *progressText;
+
+    QProgressBar *progressBar;
 
     QComboBox *categoryBox;
     QComboBox *priorityBox;
+    QLineEdit *searchBox;
+
     QListWidget *taskList;
     QGridLayout *calendarGrid;
 
-    QList<TaskData> tasks;
-
     QTimer *notificationTimer;
-    QSet<QString> notifiedTasks;
+
+    QMediaPlayer *alarmPlayer;
+    QAudioOutput *alarmAudio;
+    QString alarmSoundPath;
+
+    QString currentAlarmTask;
 
     QFrame* createStatCard(QLabel *&numberLabel, const QString &text, const QString &color);
 
     void addTask();
+    void editTask();
     void deleteTask();
+    void markTaskDone();
+
+    void openTaskDialog(int editIndex = -1, QDate selectedDate = QDate());
+
+    void refreshTaskList();
     void updateStats();
+
     void buildCalendar();
     void clearCalendar();
     void addTaskToCalendarBox(QVBoxLayout *boxLayout, const QDate &date);
+
     void checkNotifications();
+    void startAlarm(const QString &taskTitle);
+    void stopAlarm();
+    void chooseAlarmSound();
+
     void showTasksByDate(const QDate &date);
-    void markTaskDone();
+
+    void saveTasks();
+    void loadTasks();
+
+    QString taskText(const TaskData &task) const;
+    QString countdownText(const TaskData &task) const;
+
+    void applyTheme();
 };
 
 #endif
