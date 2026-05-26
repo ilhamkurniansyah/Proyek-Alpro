@@ -1,3 +1,5 @@
+//program_final
+
 QT += core gui widgets multimedia
 
 CONFIG += c++17
@@ -18,5 +20,3 @@ HEADERS += \
 
 FORMS += \
     mainwindow.ui
-
-RESOURCES +=
