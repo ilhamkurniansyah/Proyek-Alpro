@@ -46,11 +46,13 @@ Aplikasi memiliki fitur pencatatan tugas, pengingat waktu, kalender, dan statist
 | Penyimpanan | `QSettings` (registry/INI lokal) |
 | Build System | qmake / CMake |
 
+## Cara Build & Jalankan
+
 ### Menggunakan Qt Creator
-1. Buka Qt Creator
-2. Pilih **Open Project** → buka file `.pro` atau `CMakeLists.txt`
-3. Pilih kit yang sesuai (Qt 6)
-4. Klik **Build** lalu **Run**
+1. Buka aplikasi **Qt Creator**.
+2. Pilih **Open Project** → buka file `ayam.pro` atau `CMakeLists.txt` yang berada di dalam folder `TO DO LIST`.
+3. Pilih kit yang sesuai (Qt 6).
+4. Klik **Build** (ikon palu) lalu **Run** (ikon panah hijau).
 
 ## Struktur File
 ## 📂 Struktur File
