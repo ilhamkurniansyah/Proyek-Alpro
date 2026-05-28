@@ -2,7 +2,7 @@
 
 # TickTask
 
-TickTask adalah aplikasi To Do List berbasis Qt Creator dan C++ yang membantu pengguna mengatur dan mengelola tugas harian dengan lebih terorganisir.
+TickTask adalah Aplikasi manajemen tugas berbasis desktop yang dibangun dengan **Qt C++**. Dirancangg agar bisa mengatur tugas kuliah, jadwal, dan deadline dengan mudah.
 
 ## Deskripsi
 Project ini dibuat sebagai tugas Algoritma dan Pemrograman menggunakan framework Qt6.  
