@@ -53,17 +53,30 @@ Aplikasi memiliki fitur pencatatan tugas, pengingat waktu, kalender, dan statist
 4. Klik **Build** lalu **Run**
 
 ## Struktur File
-```
-main.cpp
-mainwindow.cpp
-mainwindow.h
-tambahan.cpp
-tambahan.h
-ayam.pro
+## 📂 Struktur File
 
+```text
+Proyek-Alpro/
+├── TO DO LIST/
+│   ├── .qtcreator/
+│   ├── build/
+│   ├── screenshots/
+│   │   └── Tampilan_APK.jpeg
+│   ├── CMakeLists.txt
+│   ├── ayam.pro
+│   ├── logo.ico
+│   ├── main.cpp
+│   ├── mainwindow.cpp
+│   ├── mainwindow.h
+│   ├── mainwindow.ui
+│   ├── resources.qrc
+│   ├── tambahan.cpp
+│   └── tambahan.h
+├── .gitignore
+└── README.md
 ```
 
-## 💾 Penyimpanan Data
+##  Penyimpanan Data
 
 Semua data disimpan secara lokal menggunakan `QSettings` dengan identifier:
 - **Organization:** `MyCompany`
