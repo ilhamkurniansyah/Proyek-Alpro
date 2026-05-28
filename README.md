@@ -41,10 +41,11 @@ Aplikasi memiliki fitur pencatatan tugas, pengingat waktu, kalender, dan statist
 ## Teknologi
 
 | Komponen | Detail |
-| Bahasa | C++ |
-| Framework | Qt 6 (Qt Widgets, Qt Multimedia) |
-| Penyimpanan | `QSettings` (registry/INI lokal) |
-| Build System | qmake / CMake |
+| :--- | :--- |
+| **Bahasa Pemrograman** | C++ |
+| **Framework UI** | Qt 6 (Qt Widgets, Qt Multimedia) |
+| **Penyimpanan Data** | `QSettings` (Registry / File INI Lokal) |
+| **Build System** | qmake / CMake |
 
 ## Cara Build & Jalankan
 
