@@ -1,0 +1,3 @@
+# Hashes of file build rules.
+8c629c76cfaa889b7cc4c15b448c7f71 CMakeFiles/ayam_autogen
+fe7881eaddbd80677ba19958d9dab5ea ayam_autogen/timestamp
