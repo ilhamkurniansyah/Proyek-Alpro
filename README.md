@@ -37,7 +37,7 @@ Aplikasi memiliki fitur pencatatan tugas, pengingat waktu, kalender, dan statist
 - Kartu statistik: **Total Tugas**, **Selesai**, **Belum Selesai**, **Terlambat**
 - Progress bar persentase penyelesaian tugas
 
-##  Tema Gelap / Terang
+### Tema Gelap / Terang
 - Toggle dark mode / light mode dengan satu klik
 
 ## Teknologi
