@@ -62,8 +62,8 @@ mainwindow.h
 tambahan.cpp
 tambahan.h
 ayam.pro
+
 ```
----
 
 ## 💾 Penyimpanan Data
 
@@ -72,5 +72,3 @@ Semua data disimpan secara lokal menggunakan `QSettings` dengan identifier:
 - **Application:** `TodoListSaya`
 
 Data yang disimpan meliputi tugas, jadwal kuliah per semester, semester aktif, dan path file alarm.
-
----
