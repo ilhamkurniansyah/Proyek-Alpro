@@ -55,13 +55,15 @@ Aplikasi memiliki fitur pencatatan tugas, pengingat waktu, kalender, dan statist
 4. Klik **Build** lalu **Run**
 
 ## Struktur File
-```text
+```
 main.cpp
 mainwindow.cpp
 mainwindow.h
 tambahan.cpp
 tambahan.h
 ayam.pro
+```
+---
 
 ## 💾 Penyimpanan Data
 
