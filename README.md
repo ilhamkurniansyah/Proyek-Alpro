@@ -1,5 +1,3 @@
-# Proyek-Alpro
-
 # TickTask
 
 TickTask adalah Aplikasi manajemen tugas berbasis desktop yang dibangun dengan **Qt C++**. Dirancangg agar bisa mengatur tugas kuliah, jadwal, dan deadline dengan mudah.
