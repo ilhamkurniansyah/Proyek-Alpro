@@ -8,22 +8,51 @@ TickTask adalah aplikasi To Do List berbasis Qt Creator dan C++ yang membantu pe
 Project ini dibuat sebagai tugas Algoritma dan Pemrograman menggunakan framework Qt6.  
 Aplikasi memiliki fitur pencatatan tugas, pengingat waktu, kalender, dan statistik tugas.
 
-## Fitur
-- Menambahkan tugas
-- Menghapus tugas
-- Menandai tugas selesai
-- Kategori tugas
-- Prioritas tugas
-- Kalender tugas
-- Reminder tanggal dan waktu
-- Statistik tugas
-- Notifikasi tugas
+## Fitur Utama
 
-## Teknologi yang Digunakan
-- C++
-- Qt6 Widgets
-- Qt Creator
-- CMake
+### Manajemen Tugas
+- Tambah, edit, dan hapus tugas
+- Tandai tugas sebagai **selesai / belum selesai**
+- Filter tugas berdasarkan **kategori** (Kuliah, Kerja, Pribadi, Umum) dan **prioritas** (Tinggi, Sedang, Rendah, Normal)
+- Pencarian tugas secara real-time
+- Tampilkan **riwayat tugas selesai** dengan satu klik
+
+### Kalender Interaktif
+- Tampilan kalender bulanan
+- Klik pada tanggal untuk melihat atau menambah tugas
+- Navigasi antar bulan (prev/next/hari ini)
+- Tugas tampil langsung di kotak tanggal dengan kode warna berdasarkan prioritas/status
+
+### Jadwal Kuliah
+- Kelola **semester** (tambah, ubah nama, hapus, aktifkan)
+- Tambah **mata kuliah** per hari lengkap dengan jam mulai dan selesai
+- Tampilan jadwal mingguan di atas kalender
+
+### Sistem Alarm & Notifikasi
+- Alarm otomatis saat waktu deadline tiba
+- Pilih file musik sendiri sebagai suara alarm (`.mp3` / `.wav`)
+- Countdown sisa waktu ditampilkan langsung di daftar tugas
+
+### Statistik & Progress
+- Kartu statistik: **Total Tugas**, **Selesai**, **Belum Selesai**, **Terlambat**
+- Progress bar persentase penyelesaian tugas
+
+##  Tema Gelap / Terang
+- Toggle dark mode / light mode dengan satu klik
+
+## Teknologi
+
+| Komponen | Detail |
+| Bahasa | C++ |
+| Framework | Qt 6 (Qt Widgets, Qt Multimedia) |
+| Penyimpanan | `QSettings` (registry/INI lokal) |
+| Build System | qmake / CMake |
+
+### Menggunakan Qt Creator
+1. Buka Qt Creator
+2. Pilih **Open Project** → buka file `.pro` atau `CMakeLists.txt`
+3. Pilih kit yang sesuai (Qt 6)
+4. Klik **Build** lalu **Run**
 
 ## Struktur File
 ```text
@@ -34,3 +63,12 @@ tambahan.cpp
 tambahan.h
 ayam.pro
 
+## 💾 Penyimpanan Data
+
+Semua data disimpan secara lokal menggunakan `QSettings` dengan identifier:
+- **Organization:** `MyCompany`
+- **Application:** `TodoListSaya`
+
+Data yang disimpan meliputi tugas, jadwal kuliah per semester, semester aktif, dan path file alarm.
+
+---
