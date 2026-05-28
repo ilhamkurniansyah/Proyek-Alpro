@@ -1,0 +1,5 @@
+C:/Users/ADVAN/Downloads/Proyek-Alpro-main/Proyek-Alpro-main/TO DO LIST/TO DO LIST REMOTE/Proyek-Alpro/TO DO LIST/build/Desktop_Qt_6_11_1_MinGW_64_bit-Debug/CMakeFiles/ayam.dir
+C:/Users/ADVAN/Downloads/Proyek-Alpro-main/Proyek-Alpro-main/TO DO LIST/TO DO LIST REMOTE/Proyek-Alpro/TO DO LIST/build/Desktop_Qt_6_11_1_MinGW_64_bit-Debug/CMakeFiles/edit_cache.dir
+C:/Users/ADVAN/Downloads/Proyek-Alpro-main/Proyek-Alpro-main/TO DO LIST/TO DO LIST REMOTE/Proyek-Alpro/TO DO LIST/build/Desktop_Qt_6_11_1_MinGW_64_bit-Debug/CMakeFiles/rebuild_cache.dir
+C:/Users/ADVAN/Downloads/Proyek-Alpro-main/Proyek-Alpro-main/TO DO LIST/TO DO LIST REMOTE/Proyek-Alpro/TO DO LIST/build/Desktop_Qt_6_11_1_MinGW_64_bit-Debug/CMakeFiles/ayam_autogen_timestamp_deps.dir
+C:/Users/ADVAN/Downloads/Proyek-Alpro-main/Proyek-Alpro-main/TO DO LIST/TO DO LIST REMOTE/Proyek-Alpro/TO DO LIST/build/Desktop_Qt_6_11_1_MinGW_64_bit-Debug/CMakeFiles/ayam_autogen.dir

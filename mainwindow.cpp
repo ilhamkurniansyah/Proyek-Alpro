@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QLabel>
 #include <QPushButton>
+#include <QInputDialog>
 #include <QComboBox>
 #include <QFrame>
 #include <QVBoxLayout>
@@ -86,8 +87,71 @@ MainWindow::MainWindow(QWidget *parent)
     calendarPanel->setObjectName("calendarPanel");
 
     QVBoxLayout *calendarLayout = new QVBoxLayout(calendarPanel);
-    calendarLayout->setContentsMargins(20, 12, 20, 12);
-    calendarLayout->setSpacing(8);
+    calendarLayout->setContentsMargins(18, 8, 18, 8);
+    calendarLayout->setSpacing(4);
+
+    // --- Section Jadwal Kuliah ---
+    scheduleFrame = new QFrame;
+    scheduleFrame->setObjectName("scheduleFrame");
+    QVBoxLayout *scheduleOuterLayout = new QVBoxLayout(scheduleFrame);
+    scheduleOuterLayout->setContentsMargins(0, 0, 0, 2);
+    scheduleOuterLayout->setSpacing(3);
+
+    QHBoxLayout *scheduleHeaderRow = new QHBoxLayout;
+    QLabel *scheduleTitle = new QLabel("Jadwal Kuliah");
+    scheduleTitle->setObjectName("scheduleTitle");
+
+    semesterNameLabel = new QLabel("(belum ada semester)");
+    semesterNameLabel->setObjectName("semesterNameLabel");
+
+    QPushButton *manageScheduleBtn = new QPushButton("Atur Jadwal");
+    manageScheduleBtn->setObjectName("manageScheduleBtn");
+    manageScheduleBtn->setCursor(Qt::PointingHandCursor);
+    manageScheduleBtn->setMinimumHeight(26);
+
+    scheduleHeaderRow->addWidget(scheduleTitle);
+    scheduleHeaderRow->addSpacing(4);
+    scheduleHeaderRow->addWidget(semesterNameLabel);
+    scheduleHeaderRow->addStretch();
+    scheduleHeaderRow->addWidget(manageScheduleBtn);
+
+    QHBoxLayout *scheduleDaysLayout = new QHBoxLayout;
+    scheduleDaysLayout->setSpacing(3);
+
+    QStringList dayNames = {"Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"};
+    for (int d = 0; d < 7; d++) {
+        QFrame *dayFrame = new QFrame;
+        dayFrame->setObjectName("scheduleDayFrame");
+
+        QVBoxLayout *dayLayout = new QVBoxLayout(dayFrame);
+        dayLayout->setContentsMargins(3, 3, 3, 3);
+        dayLayout->setSpacing(1);
+
+        scheduleDayLabels[d] = new QLabel(dayNames[d]);
+        scheduleDayLabels[d]->setObjectName("scheduleDayName");
+        scheduleDayLabels[d]->setAlignment(Qt::AlignCenter);
+
+        scheduleDateLabels[d] = new QLabel;
+        scheduleDateLabels[d]->setObjectName("scheduleDateLabel");
+        scheduleDateLabels[d]->setAlignment(Qt::AlignCenter);
+
+        scheduleDayCourseLayouts[d] = new QVBoxLayout;
+        scheduleDayCourseLayouts[d]->setSpacing(1);
+
+        dayLayout->addWidget(scheduleDayLabels[d]);
+        dayLayout->addWidget(scheduleDateLabels[d]);
+        dayLayout->addLayout(scheduleDayCourseLayouts[d]);
+        dayLayout->addStretch();
+
+        scheduleDaysLayout->addWidget(dayFrame);
+    }
+
+    scheduleOuterLayout->addLayout(scheduleHeaderRow);
+    scheduleOuterLayout->addLayout(scheduleDaysLayout);
+
+    calendarLayout->addWidget(scheduleFrame);
+
+    connect(manageScheduleBtn, &QPushButton::clicked, this, &MainWindow::openScheduleManager);
 
     QHBoxLayout *calendarHeader = new QHBoxLayout;
 
@@ -109,7 +173,7 @@ MainWindow::MainWindow(QWidget *parent)
     calendarHeader->addWidget(nextButton);
 
     calendarGrid = new QGridLayout;
-    calendarGrid->setSpacing(6);
+    calendarGrid->setSpacing(3);
 
     calendarLayout->addLayout(calendarHeader);
     calendarLayout->addLayout(calendarGrid);
@@ -252,16 +316,19 @@ MainWindow::MainWindow(QWidget *parent)
     connect(prevButton, &QPushButton::clicked, this, [=]() {
         currentDate = currentDate.addMonths(-1);
         buildCalendar();
+        buildScheduleView();
     });
 
     connect(nextButton, &QPushButton::clicked, this, [=]() {
         currentDate = currentDate.addMonths(1);
         buildCalendar();
+        buildScheduleView();
     });
 
     connect(todayButton, &QPushButton::clicked, this, [=]() {
         currentDate = QDate::currentDate();
         buildCalendar();
+        buildScheduleView();
     });
 
     notificationTimer = new QTimer(this);
@@ -271,6 +338,7 @@ MainWindow::MainWindow(QWidget *parent)
         updateStats();
         refreshTaskList();
         buildCalendar();
+        buildScheduleView();
     });
 
     notificationTimer->start(1000);
@@ -289,6 +357,16 @@ MainWindow::MainWindow(QWidget *parent)
     }
 
     loadTasks();
+    loadSchedule();
+
+    if (semesters.isEmpty()) {
+        SemesterData defaultSem;
+        defaultSem.name = "Semester 1";
+        defaultSem.weeklySchedule.resize(7);
+        semesters.append(defaultSem);
+        activeSemesterIndex = 0;
+        saveSchedule();
+    }
 
     searchBox->clear();
     categoryBox->setCurrentText("Semua Kategori");
@@ -296,6 +374,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     refreshTaskList();
     buildCalendar();
+    buildScheduleView();
     updateStats();
     applyTheme();
 }
@@ -719,7 +798,7 @@ void MainWindow::buildCalendar()
             QFrame *box = new QFrame;
             box->setObjectName("dateBox");
             box->setCursor(Qt::PointingHandCursor);
-            box->setMinimumHeight(88);
+            box->setMinimumHeight(68);
 
             QVBoxLayout *boxLayout = new QVBoxLayout(box);
             boxLayout->setContentsMargins(7, 5, 7, 5);
@@ -901,6 +980,473 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
     return QMainWindow::eventFilter(obj, event);
 }
 
+void clearLayout(QLayout *layout)
+{
+    if (!layout) return;
+    while (QLayoutItem *item = layout->takeAt(0)) {
+        if (item->widget()) {
+            delete item->widget();
+        }
+        if (item->layout()) {
+            clearLayout(item->layout());
+        }
+        delete item;
+    }
+}
+
+QDate MainWindow::weekStartDate() const
+{
+    int dow = currentDate.dayOfWeek();
+    return currentDate.addDays(-(dow - 1));
+}
+
+void MainWindow::buildScheduleView()
+{
+    if (!scheduleFrame) return;
+
+    QDate mon = weekStartDate();
+
+    for (int d = 0; d < 7; d++) {
+        QDate dayDate = mon.addDays(d);
+        scheduleDateLabels[d]->setText(dayDate.toString("dd/MM"));
+
+        clearLayout(scheduleDayCourseLayouts[d]);
+
+        if (activeSemesterIndex < 0 || activeSemesterIndex >= semesters.size()) {
+            continue;
+        }
+
+        const auto &courses = semesters[activeSemesterIndex].weeklySchedule[d];
+        int shown = 0;
+
+        for (const CourseEntry &ce : courses) {
+            if (shown >= 3) {
+                QLabel *moreLabel = new QLabel(QString("+%1 lagi").arg(courses.size() - 3));
+                moreLabel->setObjectName("scheduleMoreLabel");
+                moreLabel->setAlignment(Qt::AlignCenter);
+                scheduleDayCourseLayouts[d]->addWidget(moreLabel);
+                break;
+            }
+
+            QLabel *courseLabel = new QLabel(ce.name + " " + ce.startTime.toString("HH:mm") + "-" + ce.endTime.toString("HH:mm"));
+            courseLabel->setObjectName("scheduleCourseLabel");
+            courseLabel->setWordWrap(true);
+            scheduleDayCourseLayouts[d]->addWidget(courseLabel);
+            shown++;
+        }
+
+        if (shown == 0) {
+            QLabel *emptyLabel = new QLabel("—");
+            emptyLabel->setObjectName("scheduleEmptyLabel");
+            emptyLabel->setAlignment(Qt::AlignCenter);
+            scheduleDayCourseLayouts[d]->addWidget(emptyLabel);
+        }
+    }
+
+    if (activeSemesterIndex >= 0 && activeSemesterIndex < semesters.size()) {
+        semesterNameLabel->setText(semesters[activeSemesterIndex].name);
+    } else {
+        semesterNameLabel->setText("(tidak ada semester aktif)");
+    }
+}
+
+void MainWindow::openScheduleManager()
+{
+    QDialog dialog(this);
+    dialog.setWindowTitle("Atur Jadwal Kuliah");
+    dialog.resize(620, 520);
+    dialog.setObjectName("scheduleDialog");
+
+    QVBoxLayout *mainLayout = new QVBoxLayout(&dialog);
+    mainLayout->setSpacing(12);
+
+    // --- Semester Management ---
+    QFrame *semGroup = new QFrame;
+    semGroup->setObjectName("scheduleGroupBox");
+    QVBoxLayout *semLayout = new QVBoxLayout(semGroup);
+    semLayout->setContentsMargins(12, 10, 12, 10);
+    semLayout->setSpacing(8);
+
+    QLabel *semTitle = new QLabel("Semester");
+    semTitle->setObjectName("scheduleGroupTitle");
+
+    QHBoxLayout *semRow = new QHBoxLayout;
+    QComboBox *semCombo = new QComboBox;
+    semCombo->setMinimumWidth(200);
+
+    for (int i = 0; i < semesters.size(); i++) {
+        semCombo->addItem(semesters[i].name);
+    }
+    if (activeSemesterIndex >= 0 && activeSemesterIndex < semesters.size()) {
+        semCombo->setCurrentIndex(activeSemesterIndex);
+    }
+
+    QPushButton *addSemBtn = new QPushButton("+ Tambah");
+    QPushButton *renameSemBtn = new QPushButton("✎ Nama");
+    QPushButton *deleteSemBtn = new QPushButton("✕ Hapus");
+    QPushButton *activateSemBtn = new QPushButton("✓ Aktifkan");
+
+    addSemBtn->setObjectName("smBtn");
+    renameSemBtn->setObjectName("smBtn");
+    deleteSemBtn->setObjectName("smBtn");
+    activateSemBtn->setObjectName("smBtn");
+
+    QLabel *activeSemLabel = new QLabel;
+    if (activeSemesterIndex >= 0 && activeSemesterIndex < semesters.size()) {
+        activeSemLabel->setText("✔ Aktif: " + semesters[activeSemesterIndex].name);
+    } else {
+        activeSemLabel->setText("— Belum ada semester aktif");
+    }
+    activeSemLabel->setObjectName("activeSemLabel");
+
+    semRow->addWidget(semCombo);
+    semRow->addWidget(addSemBtn);
+    semRow->addWidget(renameSemBtn);
+    semRow->addWidget(deleteSemBtn);
+    semRow->addWidget(activateSemBtn);
+
+    semLayout->addWidget(semTitle);
+    semLayout->addLayout(semRow);
+    semLayout->addWidget(activeSemLabel);
+
+    // --- Course Management ---
+    QFrame *courseGroup = new QFrame;
+    courseGroup->setObjectName("scheduleGroupBox");
+    QVBoxLayout *courseLayout = new QVBoxLayout(courseGroup);
+    courseLayout->setContentsMargins(12, 10, 12, 10);
+    courseLayout->setSpacing(8);
+
+    QLabel *courseTitle = new QLabel("Mata Kuliah");
+    courseTitle->setObjectName("scheduleGroupTitle");
+
+    QHBoxLayout *daySelectRow = new QHBoxLayout;
+    QComboBox *dayCombo = new QComboBox;
+    dayCombo->addItems({"Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"});
+    dayCombo->setMinimumWidth(120);
+    QLabel *dayLabel = new QLabel("Pilih hari:");
+    daySelectRow->addWidget(dayLabel);
+    daySelectRow->addWidget(dayCombo);
+    daySelectRow->addStretch();
+
+    QListWidget *courseList = new QListWidget;
+    courseList->setObjectName("courseList");
+    courseList->setMinimumHeight(160);
+
+    QHBoxLayout *courseBtnRow = new QHBoxLayout;
+    QPushButton *addCourseBtn = new QPushButton("+ Tambah Matkul");
+    QPushButton *editCourseBtn = new QPushButton("✎ Edit");
+    QPushButton *deleteCourseBtn = new QPushButton("✕ Hapus");
+    addCourseBtn->setObjectName("smBtn");
+    editCourseBtn->setObjectName("smBtn");
+    deleteCourseBtn->setObjectName("smBtn");
+    courseBtnRow->addWidget(addCourseBtn);
+    courseBtnRow->addWidget(editCourseBtn);
+    courseBtnRow->addWidget(deleteCourseBtn);
+    courseBtnRow->addStretch();
+
+    courseLayout->addWidget(courseTitle);
+    courseLayout->addLayout(daySelectRow);
+    courseLayout->addWidget(courseList);
+    courseLayout->addLayout(courseBtnRow);
+
+    mainLayout->addWidget(semGroup);
+    mainLayout->addWidget(courseGroup);
+    mainLayout->addStretch();
+
+    QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Close);
+    mainLayout->addWidget(buttonBox);
+
+    // Refresh course list
+    auto refreshCourseList = [&]() {
+        courseList->clear();
+        int semIdx = semCombo->currentIndex();
+        int dayIdx = dayCombo->currentIndex();
+        if (semIdx >= 0 && semIdx < semesters.size() && dayIdx >= 0 && dayIdx < 7) {
+            const auto &courses = semesters[semIdx].weeklySchedule[dayIdx];
+            for (int i = 0; i < courses.size(); i++) {
+                const auto &c = courses[i];
+                courseList->addItem(c.name + "  (" + c.startTime.toString("HH:mm") + " - " + c.endTime.toString("HH:mm") + ")");
+            }
+        }
+        if (semCombo->currentIndex() == activeSemesterIndex) {
+            activeSemLabel->setText("✔ Aktif: " + semesters[activeSemesterIndex].name);
+        }
+    };
+
+    auto scheduleChanged = [&]() {
+        saveSchedule();
+        buildScheduleView();
+    };
+
+    connect(dayCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [&](int) {
+        refreshCourseList();
+    });
+
+    connect(semCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [&](int) {
+        refreshCourseList();
+    });
+
+    // Add semester
+    connect(addSemBtn, &QPushButton::clicked, [&]() {
+        bool ok;
+        QString name = QInputDialog::getText(&dialog, "Tambah Semester", "Nama semester:", QLineEdit::Normal, "", &ok);
+        if (ok && !name.trimmed().isEmpty()) {
+            SemesterData sem;
+            sem.name = name.trimmed();
+            sem.weeklySchedule.resize(7);
+            semesters.append(sem);
+            semCombo->addItem(sem.name);
+            semCombo->setCurrentIndex(semesters.size() - 1);
+            scheduleChanged();
+        }
+    });
+
+    // Rename semester
+    connect(renameSemBtn, &QPushButton::clicked, [&]() {
+        int idx = semCombo->currentIndex();
+        if (idx < 0 || idx >= semesters.size()) return;
+        bool ok;
+        QString name = QInputDialog::getText(&dialog, "Ubah Nama Semester", "Nama baru:", QLineEdit::Normal, semesters[idx].name, &ok);
+        if (ok && !name.trimmed().isEmpty()) {
+            semesters[idx].name = name.trimmed();
+            semCombo->setItemText(idx, name);
+            scheduleChanged();
+        }
+    });
+
+    // Delete semester
+    connect(deleteSemBtn, &QPushButton::clicked, [&]() {
+        int idx = semCombo->currentIndex();
+        if (idx < 0 || idx >= semesters.size()) return;
+        if (semesters.size() <= 1) {
+            QMessageBox::warning(&dialog, "Peringatan", "Tidak bisa menghapus semester terakhir.");
+            return;
+        }
+        int ret = QMessageBox::question(&dialog, "Konfirmasi", "Hapus semester \"" + semesters[idx].name + "\"?");
+        if (ret != QMessageBox::Yes) return;
+
+        semesters.removeAt(idx);
+        semCombo->removeItem(idx);
+        if (idx == activeSemesterIndex) {
+            activeSemesterIndex = 0;
+        } else if (idx < activeSemesterIndex) {
+            activeSemesterIndex--;
+        }
+        if (!semesters.isEmpty()) {
+            semCombo->setCurrentIndex(qMin(activeSemesterIndex, semesters.size() - 1));
+        }
+        scheduleChanged();
+    });
+
+    // Activate semester
+    connect(activateSemBtn, &QPushButton::clicked, [&]() {
+        int idx = semCombo->currentIndex();
+        if (idx < 0 || idx >= semesters.size()) return;
+        activeSemesterIndex = idx;
+        activeSemLabel->setText("✔ Aktif: " + semesters[idx].name);
+        scheduleChanged();
+    });
+
+    // Add course
+    connect(addCourseBtn, &QPushButton::clicked, [&]() {
+        int semIdx = semCombo->currentIndex();
+        int dayIdx = dayCombo->currentIndex();
+        if (semIdx < 0 || semIdx >= semesters.size()) return;
+
+        QDialog inputDialog(&dialog);
+        inputDialog.setWindowTitle("Tambah Mata Kuliah");
+        inputDialog.resize(320, 200);
+
+        QVBoxLayout *inputLayout = new QVBoxLayout(&inputDialog);
+        QFormLayout *form = new QFormLayout;
+
+        QLineEdit *nameInput = new QLineEdit;
+        nameInput->setPlaceholderText("Nama mata kuliah");
+        QTimeEdit *startInput = new QTimeEdit(QTime(7, 0));
+        startInput->setDisplayFormat("HH:mm");
+        QTimeEdit *endInput = new QTimeEdit(QTime(9, 0));
+        endInput->setDisplayFormat("HH:mm");
+
+        form->addRow("Matkul:", nameInput);
+        form->addRow("Mulai:", startInput);
+        form->addRow("Selesai:", endInput);
+
+        QDialogButtonBox *box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+        connect(box, &QDialogButtonBox::accepted, &inputDialog, &QDialog::accept);
+        connect(box, &QDialogButtonBox::rejected, &inputDialog, &QDialog::reject);
+
+        inputLayout->addLayout(form);
+        inputLayout->addWidget(box);
+
+        if (inputDialog.exec() == QDialog::Accepted) {
+            QString cname = nameInput->text().trimmed();
+            if (cname.isEmpty()) {
+                QMessageBox::warning(&dialog, "Peringatan", "Nama mata kuliah tidak boleh kosong.");
+                return;
+            }
+            CourseEntry ce;
+            ce.name = cname;
+            ce.startTime = startInput->time();
+            ce.endTime = endInput->time();
+            semesters[semIdx].weeklySchedule[dayIdx].append(ce);
+            refreshCourseList();
+            scheduleChanged();
+        }
+    });
+
+    // Edit course
+    connect(editCourseBtn, &QPushButton::clicked, [&]() {
+        int semIdx = semCombo->currentIndex();
+        int dayIdx = dayCombo->currentIndex();
+        int courseRow = courseList->currentRow();
+        if (semIdx < 0 || semIdx >= semesters.size()) return;
+        if (courseRow < 0 || courseRow >= semesters[semIdx].weeklySchedule[dayIdx].size()) {
+            QMessageBox::warning(&dialog, "Peringatan", "Pilih mata kuliah yang ingin diedit.");
+            return;
+        }
+
+        CourseEntry &ce = semesters[semIdx].weeklySchedule[dayIdx][courseRow];
+
+        QDialog inputDialog(&dialog);
+        inputDialog.setWindowTitle("Edit Mata Kuliah");
+        inputDialog.resize(320, 200);
+
+        QVBoxLayout *inputLayout = new QVBoxLayout(&inputDialog);
+        QFormLayout *form = new QFormLayout;
+
+        QLineEdit *nameInput = new QLineEdit(ce.name);
+        QTimeEdit *startInput = new QTimeEdit(ce.startTime);
+        startInput->setDisplayFormat("HH:mm");
+        QTimeEdit *endInput = new QTimeEdit(ce.endTime);
+        endInput->setDisplayFormat("HH:mm");
+
+        form->addRow("Matkul:", nameInput);
+        form->addRow("Mulai:", startInput);
+        form->addRow("Selesai:", endInput);
+
+        QDialogButtonBox *box = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+        connect(box, &QDialogButtonBox::accepted, &inputDialog, &QDialog::accept);
+        connect(box, &QDialogButtonBox::rejected, &inputDialog, &QDialog::reject);
+
+        inputLayout->addLayout(form);
+        inputLayout->addWidget(box);
+
+        if (inputDialog.exec() == QDialog::Accepted) {
+            QString cname = nameInput->text().trimmed();
+            if (cname.isEmpty()) {
+                QMessageBox::warning(&dialog, "Peringatan", "Nama mata kuliah tidak boleh kosong.");
+                return;
+            }
+            ce.name = cname;
+            ce.startTime = startInput->time();
+            ce.endTime = endInput->time();
+            refreshCourseList();
+            scheduleChanged();
+        }
+    });
+
+    // Delete course
+    connect(deleteCourseBtn, &QPushButton::clicked, [&]() {
+        int semIdx = semCombo->currentIndex();
+        int dayIdx = dayCombo->currentIndex();
+        int courseRow = courseList->currentRow();
+        if (semIdx < 0 || semIdx >= semesters.size()) return;
+        if (courseRow < 0 || courseRow >= semesters[semIdx].weeklySchedule[dayIdx].size()) {
+            QMessageBox::warning(&dialog, "Peringatan", "Pilih mata kuliah yang ingin dihapus.");
+            return;
+        }
+        semesters[semIdx].weeklySchedule[dayIdx].removeAt(courseRow);
+        refreshCourseList();
+        scheduleChanged();
+    });
+
+    connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    refreshCourseList();
+    dialog.exec();
+
+    saveSchedule();
+    buildScheduleView();
+}
+
+void MainWindow::saveSchedule()
+{
+    QSettings settings("MyCompany", "TodoListSaya");
+
+    settings.remove("semesters");
+    settings.beginWriteArray("semesters");
+
+    for (int s = 0; s < semesters.size(); s++) {
+        settings.setArrayIndex(s);
+        settings.setValue("name", semesters[s].name);
+
+        settings.beginWriteArray("days");
+        for (int d = 0; d < 7; d++) {
+            settings.setArrayIndex(d);
+            const auto &courses = semesters[s].weeklySchedule[d];
+
+            settings.beginWriteArray("courses");
+            for (int c = 0; c < courses.size(); c++) {
+                settings.setArrayIndex(c);
+                settings.setValue("name", courses[c].name);
+                settings.setValue("start", courses[c].startTime);
+                settings.setValue("end", courses[c].endTime);
+            }
+            settings.endArray();
+        }
+        settings.endArray();
+    }
+
+    settings.endArray();
+    settings.setValue("activeSemester", activeSemesterIndex);
+}
+
+void MainWindow::loadSchedule()
+{
+    QSettings settings("MyCompany", "TodoListSaya");
+
+    semesters.clear();
+
+    int semCount = settings.beginReadArray("semesters");
+
+    for (int s = 0; s < semCount; s++) {
+        settings.setArrayIndex(s);
+        SemesterData sem;
+        sem.name = settings.value("name").toString();
+        sem.weeklySchedule.resize(7);
+
+        int dayCount = settings.beginReadArray("days");
+        for (int d = 0; d < dayCount && d < 7; d++) {
+            settings.setArrayIndex(d);
+
+            int courseCount = settings.beginReadArray("courses");
+            for (int c = 0; c < courseCount; c++) {
+                settings.setArrayIndex(c);
+                CourseEntry ce;
+                ce.name = settings.value("name").toString();
+                ce.startTime = settings.value("start").toTime();
+                ce.endTime = settings.value("end").toTime();
+                if (!ce.name.isEmpty()) {
+                    sem.weeklySchedule[d].append(ce);
+                }
+            }
+            settings.endArray();
+        }
+        settings.endArray();
+
+        if (!sem.name.isEmpty()) {
+            semesters.append(sem);
+        }
+    }
+
+    settings.endArray();
+    activeSemesterIndex = settings.value("activeSemester", -1).toInt();
+
+    if (activeSemesterIndex < 0 || activeSemesterIndex >= semesters.size()) {
+        activeSemesterIndex = semesters.isEmpty() ? -1 : 0;
+    }
+}
+
 void MainWindow::saveTasks()
 {
     QSettings settings("MyCompany", "TodoListSaya");
@@ -1053,6 +1599,15 @@ void MainWindow::applyTheme()
                 font-size:14px;
             }
 
+            QComboBox QAbstractItemView {
+                background:white;
+                color:black;
+                selection-background-color:#DBEAFE;
+                selection-color:black;
+                border:1px solid #DDDDDD;
+                outline:none;
+            }
+
             QListWidget#taskList {
                 background:white;
                 color:black;
@@ -1113,6 +1668,125 @@ void MainWindow::applyTheme()
             QProgressBar::chunk {
                 background:#2563FF;
                 border-radius:8px;
+            }
+
+            QFrame#scheduleFrame {
+                background:#F8FAFF;
+                border:1px solid #E5E7EB;
+                border-radius:10px;
+                padding:6px;
+            }
+
+            QLabel#scheduleTitle {
+                font-size:13px;
+                font-weight:bold;
+                color:#14243D;
+            }
+
+            QLabel#semesterNameLabel {
+                font-size:11px;
+                color:#2563EB;
+                font-weight:bold;
+            }
+
+            QPushButton#manageScheduleBtn {
+                background:#2563FF;
+                color:white;
+                border:none;
+                border-radius:5px;
+                padding:4px 10px;
+                font-size:11px;
+                font-weight:bold;
+            }
+
+            QPushButton#manageScheduleBtn:hover {
+                background:#1D4ED8;
+            }
+
+            QFrame#scheduleDayFrame {
+                background:white;
+                border:1px solid #E5E7EB;
+                border-radius:6px;
+            }
+
+            QLabel#scheduleDayName {
+                font-size:10px;
+                font-weight:bold;
+                color:#334155;
+            }
+
+            QLabel#scheduleDateLabel {
+                font-size:10px;
+                color:#6B7280;
+            }
+
+            QLabel#scheduleCourseLabel {
+                font-size:9px;
+                color:#1E3A8A;
+                background:#DBEAFE;
+                border-radius:3px;
+                padding:1px 3px;
+            }
+
+            QLabel#scheduleMoreLabel {
+                font-size:9px;
+                color:#6B7280;
+                font-style:italic;
+            }
+
+            QLabel#scheduleEmptyLabel {
+                font-size:9px;
+                color:#D1D5DB;
+            }
+
+            QFrame#scheduleGroupBox {
+                background:#F8FAFF;
+                border:1px solid #E5E7EB;
+                border-radius:10px;
+            }
+
+            QLabel#scheduleGroupTitle {
+                font-size:14px;
+                font-weight:bold;
+                color:#14243D;
+            }
+
+            QPushButton#smBtn {
+                background:#2563FF;
+                color:white;
+                border:none;
+                border-radius:5px;
+                padding:5px 10px;
+                font-size:11px;
+                font-weight:bold;
+            }
+
+            QPushButton#smBtn:hover {
+                background:#1D4ED8;
+            }
+
+            QLabel#activeSemLabel {
+                font-size:12px;
+                color:#00A650;
+                font-weight:bold;
+            }
+
+            QListWidget#courseList {
+                background:white;
+                color:black;
+                border:1px solid #E5E7EB;
+                border-radius:8px;
+                font-size:13px;
+            }
+
+            QListWidget#courseList::item {
+                padding:6px;
+                border-radius:4px;
+            }
+
+            QListWidget#courseList::item:selected {
+                background:#DBEAFE;
+                color:black;
             }
 
             QScrollArea {
@@ -1217,6 +1891,15 @@ void MainWindow::applyTheme()
                 font-size:14px;
             }
 
+            QComboBox QAbstractItemView {
+                background:#0F172A;
+                color:white;
+                selection-background-color:#334155;
+                selection-color:white;
+                border:1px solid #475569;
+                outline:none;
+            }
+
             QListWidget#taskList {
                 background:#0F172A;
                 color:white;
@@ -1267,6 +1950,125 @@ void MainWindow::applyTheme()
             QProgressBar::chunk {
                 background:#22C55E;
                 border-radius:8px;
+            }
+
+            QFrame#scheduleFrame {
+                background:#1E293B;
+                border:1px solid #334155;
+                border-radius:10px;
+                padding:6px;
+            }
+
+            QLabel#scheduleTitle {
+                font-size:13px;
+                font-weight:bold;
+                color:white;
+            }
+
+            QLabel#semesterNameLabel {
+                font-size:11px;
+                color:#60A5FA;
+                font-weight:bold;
+            }
+
+            QPushButton#manageScheduleBtn {
+                background:#2563FF;
+                color:white;
+                border:none;
+                border-radius:5px;
+                padding:4px 10px;
+                font-size:11px;
+                font-weight:bold;
+            }
+
+            QPushButton#manageScheduleBtn:hover {
+                background:#1D4ED8;
+            }
+
+            QFrame#scheduleDayFrame {
+                background:#0F172A;
+                border:1px solid #475569;
+                border-radius:6px;
+            }
+
+            QLabel#scheduleDayName {
+                font-size:10px;
+                font-weight:bold;
+                color:#CBD5E1;
+            }
+
+            QLabel#scheduleDateLabel {
+                font-size:10px;
+                color:#94A3B8;
+            }
+
+            QLabel#scheduleCourseLabel {
+                font-size:9px;
+                color:#BFDBFE;
+                background:#1E3A5F;
+                border-radius:3px;
+                padding:1px 3px;
+            }
+
+            QLabel#scheduleMoreLabel {
+                font-size:9px;
+                color:#94A3B8;
+                font-style:italic;
+            }
+
+            QLabel#scheduleEmptyLabel {
+                font-size:9px;
+                color:#475569;
+            }
+
+            QFrame#scheduleGroupBox {
+                background:#1E293B;
+                border:1px solid #334155;
+                border-radius:10px;
+            }
+
+            QLabel#scheduleGroupTitle {
+                font-size:14px;
+                font-weight:bold;
+                color:white;
+            }
+
+            QPushButton#smBtn {
+                background:#2563FF;
+                color:white;
+                border:none;
+                border-radius:5px;
+                padding:5px 10px;
+                font-size:11px;
+                font-weight:bold;
+            }
+
+            QPushButton#smBtn:hover {
+                background:#1D4ED8;
+            }
+
+            QLabel#activeSemLabel {
+                font-size:12px;
+                color:#22C55E;
+                font-weight:bold;
+            }
+
+            QListWidget#courseList {
+                background:#0F172A;
+                color:white;
+                border:1px solid #475569;
+                border-radius:8px;
+                font-size:13px;
+            }
+
+            QListWidget#courseList::item {
+                padding:6px;
+                border-radius:4px;
+            }
+
+            QListWidget#courseList::item:selected {
+                background:#334155;
+                color:white;
             }
 
             QScrollArea {

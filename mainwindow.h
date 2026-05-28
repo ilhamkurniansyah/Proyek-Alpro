@@ -32,6 +32,19 @@ struct TaskData
     bool isAlarmActive = false;
 };
 
+struct CourseEntry
+{
+    QString name;
+    QTime startTime;
+    QTime endTime;
+};
+
+struct SemesterData
+{
+    QString name;
+    QList<QList<CourseEntry>> weeklySchedule; // [0]=Senin ...[6]=Minggu
+};
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -46,6 +59,9 @@ private:
     QList<TaskData> tasks;
     QSet<QString> notifiedTasks;
     QDate currentDate;
+
+    QList<SemesterData> semesters;
+    int activeSemesterIndex = -1;
 
     bool darkMode = false;
     bool showHistory = false;
@@ -76,6 +92,12 @@ private:
 
     QPushButton *historyButton;
 
+    QFrame *scheduleFrame;
+    QLabel *semesterNameLabel;
+    QLabel *scheduleDayLabels[7];
+    QLabel *scheduleDateLabels[7];
+    QVBoxLayout *scheduleDayCourseLayouts[7];
+
     QFrame* createStatCard(QLabel *&numberLabel, const QString &text, const QString &color);
 
     void addTask();
@@ -104,6 +126,13 @@ private:
 
     QString taskText(const TaskData &task) const;
     QString countdownText(const TaskData &task) const;
+
+    void buildScheduleView();
+    void openScheduleManager();
+    QDate weekStartDate() const;
+
+    void saveSchedule();
+    void loadSchedule();
 
     void applyTheme();
 };

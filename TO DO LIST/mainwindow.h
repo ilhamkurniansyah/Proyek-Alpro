@@ -19,6 +19,7 @@
 #include <QProgressBar>
 #include <QMediaPlayer>
 #include <QAudioOutput>
+#include <QPushButton>
 
 struct TaskData
 {
@@ -28,6 +29,20 @@ struct TaskData
     QDate reminderDate;
     QTime reminderTime;
     bool isDone = false;
+    bool isAlarmActive = false;
+};
+
+struct CourseEntry
+{
+    QString name;
+    QTime startTime;
+    QTime endTime;
+};
+
+struct SemesterData
+{
+    QString name;
+    QList<QList<CourseEntry>> weeklySchedule; // [0]=Senin ...[6]=Minggu
 };
 
 class MainWindow : public QMainWindow
@@ -45,7 +60,11 @@ private:
     QSet<QString> notifiedTasks;
     QDate currentDate;
 
+    QList<SemesterData> semesters;
+    int activeSemesterIndex = -1;
+
     bool darkMode = false;
+    bool showHistory = false;
 
     QLabel *totalLabel;
     QLabel *doneLabel;
@@ -70,6 +89,14 @@ private:
     QString alarmSoundPath;
 
     QString currentAlarmTask;
+
+    QPushButton *historyButton;
+
+    QFrame *scheduleFrame;
+    QLabel *semesterNameLabel;
+    QLabel *scheduleDayLabels[7];
+    QLabel *scheduleDateLabels[7];
+    QVBoxLayout *scheduleDayCourseLayouts[7];
 
     QFrame* createStatCard(QLabel *&numberLabel, const QString &text, const QString &color);
 
@@ -99,6 +126,13 @@ private:
 
     QString taskText(const TaskData &task) const;
     QString countdownText(const TaskData &task) const;
+
+    void buildScheduleView();
+    void openScheduleManager();
+    QDate weekStartDate() const;
+
+    void saveSchedule();
+    void loadSchedule();
 
     void applyTheme();
 };
