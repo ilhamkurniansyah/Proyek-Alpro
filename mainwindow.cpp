@@ -1599,6 +1599,15 @@ void MainWindow::applyTheme()
                 font-size:14px;
             }
 
+            QComboBox QAbstractItemView {
+                background:white;
+                color:black;
+                selection-background-color:#DBEAFE;
+                selection-color:black;
+                border:1px solid #DDDDDD;
+                outline:none;
+            }
+
             QListWidget#taskList {
                 background:white;
                 color:black;
@@ -1880,6 +1889,15 @@ void MainWindow::applyTheme()
                 border-radius:10px;
                 padding:8px 14px;
                 font-size:14px;
+            }
+
+            QComboBox QAbstractItemView {
+                background:#0F172A;
+                color:white;
+                selection-background-color:#334155;
+                selection-color:white;
+                border:1px solid #475569;
+                outline:none;
             }
 
             QListWidget#taskList {
