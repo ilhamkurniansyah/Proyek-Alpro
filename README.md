@@ -2,10 +2,6 @@
 
 TickTask adalah Aplikasi manajemen tugas berbasis desktop yang dibangun dengan **Qt C++**. Dirancangg agar bisa mengatur tugas kuliah, jadwal, dan deadline dengan mudah.
 
-## Deskripsi
-Project ini dibuat sebagai tugas Algoritma dan Pemrograman menggunakan framework Qt6.  
-Aplikasi memiliki fitur pencatatan tugas, pengingat waktu, kalender, dan statistik tugas.
-
 ## Fitur Utama
 
 ### Manajemen Tugas
