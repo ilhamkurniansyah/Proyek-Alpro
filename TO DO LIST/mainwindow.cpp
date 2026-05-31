@@ -210,18 +210,15 @@ MainWindow::MainWindow(QWidget *parent)
     notifButton->setObjectName("notifBtn");
     soundButton->setObjectName("soundBtn");
     themeButton->setObjectName("themeBtn");
-    // 1. Buat objek tombolnya dulu
+
     historyButton = new QPushButton(this);
 
-    // 2. Atur teks dan desainnya
-    historyButton->setText("📋 Menampilkan: Tugas Aktif (Klik untuk Riwayat)");
+
+    historyButton->setText("📋 Menampilkan: Tugas Aktif (Klik untuk melihat Riwayat)");
     historyButton->setStyleSheet("background-color: #17a2b8; color: white; font-weight: bold; padding: 6px; border-radius: 5px;");
 
-    // 3. MASUKKAN KE LAYOUT UTAMA KANAN (Bukan buttonLayout)
-    // Coba cek kode baris 177-181 di projekmu, sesuaikan namanya (biasanya panelLayout atau controlPanel)
     panelLayout->addWidget(historyButton);
 
-    // 4. Sambungkan logika kliknya
     connect(historyButton, &QPushButton::clicked, this, [this]() {
         showHistory = !showHistory;
 
@@ -229,7 +226,7 @@ MainWindow::MainWindow(QWidget *parent)
             historyButton->setText("📜 Menampilkan: Riwayat Tugas Selesai");
             historyButton->setStyleSheet("background-color: #6c757d; color: white; font-weight: bold; padding: 6px; border-radius: 5px;");
         } else {
-            historyButton->setText("📋 Menampilkan: Tugas Aktif (Klik untuk Riwayat)");
+            historyButton->setText("📋 Menampilkan: Tugas Aktif (Klik untuk melihat Riwayat)");
             historyButton->setStyleSheet("background-color: #17a2b8; color: white; font-weight: bold; padding: 6px; border-radius: 5px;");
         }
         refreshTaskList();
@@ -254,7 +251,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     taskList = new QListWidget;
     taskList->setObjectName("taskList");
-    taskList->setSelectionMode(QAbstractItemView::SingleSelection);
+    taskList->setSelectionMode(QAbstractItemView::MultiSelection);
     taskList->setMinimumHeight(260);
     taskList->setMaximumHeight(420);
 
@@ -280,68 +277,69 @@ MainWindow::MainWindow(QWidget *parent)
     connect(deleteButton, &QPushButton::clicked, this, &MainWindow::deleteTask);
     connect(doneButton, &QPushButton::clicked, this, &MainWindow::markTaskDone);
     connect(notifButton, &QPushButton::clicked, this, [=]() {
-        QListWidgetItem *item = taskList->currentItem();
-        if (!item) {
-            QMessageBox::warning(this, "Peringatan", "Pilih salah satu tugas terlebih dahulu untuk mengecek alarm.");
-            return;
-        }
+    QListWidgetItem *item = taskList->currentItem();
+    if (!item) {
+        QMessageBox::warning(this, "Peringatan", "Pilih salah satu tugas terlebih dahulu untuk mengecek alarm.");
+        return;
+    }
 
-        int index = item->data(Qt::UserRole).toInt();
-        if (index >= 0 && index < tasks.size()) {
-            tasks[index].isAlarmActive = true;
+    int index = item->data(Qt::UserRole).toInt();
+    if (index >= 0 && index < tasks.size()) {
+        tasks[index].isAlarmActive = true;
 
-            saveTasks();
+        saveTasks();
 
-            checkNotifications();
-            refreshTaskList();
-        }
-    });
+        checkNotifications();
+        refreshTaskList();
+    }
+});
     connect(soundButton, &QPushButton::clicked, this, &MainWindow::chooseAlarmSound);
 
     connect(themeButton, &QPushButton::clicked, this, [=]() {
-        darkMode = !darkMode;
-        applyTheme();
+    darkMode = !darkMode;
+    applyTheme();
 
-        if (darkMode) {
-            themeButton->setText("☀ Light");
-        } else {
-            themeButton->setText("🌙 Dark");
-        }
-    });
+    if (darkMode) {
+        themeButton->setText("☀️ Light");
+    } else {
+        themeButton->setText("🌙 Dark");
+    }
+});
 
     connect(searchBox, &QLineEdit::textChanged, this, &MainWindow::refreshTaskList);
     connect(categoryBox, &QComboBox::currentTextChanged, this, &MainWindow::refreshTaskList);
     connect(priorityBox, &QComboBox::currentTextChanged, this, &MainWindow::refreshTaskList);
 
     connect(prevButton, &QPushButton::clicked, this, [=]() {
-        currentDate = currentDate.addMonths(-1);
-        buildCalendar();
-        buildScheduleView();
-    });
+    currentDate = currentDate.addMonths(-1);
+    buildCalendar();
+    buildScheduleView();
+});
 
     connect(nextButton, &QPushButton::clicked, this, [=]() {
-        currentDate = currentDate.addMonths(1);
-        buildCalendar();
-        buildScheduleView();
-    });
+    currentDate = currentDate.addMonths(1);
+    buildCalendar();
+    buildScheduleView();
+});
 
     connect(todayButton, &QPushButton::clicked, this, [=]() {
-        currentDate = QDate::currentDate();
-        buildCalendar();
+    currentDate = QDate::currentDate();
+    buildCalendar();
         buildScheduleView();
-    });
+});
 
     notificationTimer = new QTimer(this);
 
     connect(notificationTimer, &QTimer::timeout, this, [=]() {
-        checkNotifications();
-        updateStats();
-        refreshTaskList();
-        buildCalendar();
-        buildScheduleView();
-    });
+    checkNotifications();
+    updateStats();
+    //refreshTaskList();
+    buildCalendar();
+    buildScheduleView();
+});
 
     notificationTimer->start(1000);
+
 
     alarmAudio = new QAudioOutput(this);
     alarmAudio->setVolume(0.9);
@@ -377,6 +375,39 @@ MainWindow::MainWindow(QWidget *parent)
     buildScheduleView();
     updateStats();
     applyTheme();
+
+    // GANTI LOGIKA: Sekarang menggunakan itemClicked agar sekali klik langsung Biru + Centang
+    connect(taskList, &QListWidget::itemClicked, this, [this](QListWidgetItem *item) {
+        if (!item) return;
+
+        // Ambil indeks asli tugas dari data struct
+        int index = item->data(Qt::UserRole).toInt();
+        if (index >= 0 && index < tasks.size()) {
+
+            // Blokir sinyal list widget sementara agar tidak memicu refresh loop
+            taskList->blockSignals(true);
+
+            // Cek kondisi centang saat ini, lalu balikkan nilainya (toggle)
+            bool currentChecked = (item->checkState() == Qt::Checked);
+            bool newChecked = !currentChecked;
+
+            // 1. Set centang kotak kecilnya
+            item->setCheckState(newChecked ? Qt::Checked : Qt::Unchecked);
+
+            // 2. Set warna biru sebaris (Selected) agar sinkron dengan centangnya
+            item->setSelected(newChecked);
+
+            // Simpan status baru ini ke data asli (isAlarmActive) agar permanen
+            tasks[index].isAlarmActive = newChecked;
+            saveTasks();
+
+            // Buka kembali blokir sinyal
+            taskList->blockSignals(false);
+
+            // Perbarui statistik tanpa menggambar ulang list widget agar birunya tidak hilang
+            updateStats();
+        }
+    });
 }
 
 QFrame* MainWindow::createStatCard(QLabel *&numberLabel, const QString &text, const QString &color)
@@ -550,6 +581,7 @@ void MainWindow::openTaskDialog(int editIndex, QDate selectedDate)
             tasks[editIndex] = task;
         } else {
             task.isDone = false;
+            task.isAlarmActive = false;
             tasks.append(task);
         }
 
@@ -567,31 +599,29 @@ void MainWindow::openTaskDialog(int editIndex, QDate selectedDate)
 
 void MainWindow::deleteTask()
 {
-    int row = taskList->currentRow();
+    // 1. Cari tahu tugas mana saja yang sedang DICENTANG kotak kecilnya
+    QList<int> indicesToRemove;
 
-    if (row < 0) {
-        QMessageBox::warning(this, "Peringatan", "Klik/pilih dulu tugas yang ingin dihapus.");
+    for (int i = 0; i < taskList->count(); ++i) {
+        QListWidgetItem *item = taskList->item(i);
+        if (item && item->checkState() == Qt::Checked) {
+            int index = item->data(Qt::UserRole).toInt();
+            if (index >= 0 && index < tasks.size()) {
+                indicesToRemove.append(index);
+            }
+        }
+    }
+
+    if (indicesToRemove.isEmpty()) {
+        QMessageBox::warning(this, "Peringatan", "Centang satu atau beberapa kotak tugas yang ingin dihapus terlebih dahulu.");
         return;
     }
 
-    QListWidgetItem *item = taskList->item(row);
-
-    if (!item) {
-        QMessageBox::warning(this, "Error", "Item tugas tidak ditemukan.");
-        return;
-    }
-
-    int index = item->data(Qt::UserRole).toInt();
-
-    if (index < 0 || index >= tasks.size()) {
-        QMessageBox::warning(this, "Peringatan", "Data tugas tidak valid.");
-        return;
-    }
-
+    // 2. Konfirmasi hapus
     int confirm = QMessageBox::question(
         this,
-        "Konfirmasi Hapus",
-        "Yakin ingin menghapus tugas ini?\n\n" + tasks[index].title,
+        "Konfirmasi Hapus Massal",
+        QString("Yakin ingin menghapus %1 tugas yang dicentang?").arg(indicesToRemove.size()),
         QMessageBox::Yes | QMessageBox::No
         );
 
@@ -599,8 +629,15 @@ void MainWindow::deleteTask()
         return;
     }
 
-    tasks.removeAt(index);
+    // 3. Urutkan indeks dari BESAR ke KECIL agar tidak salah hapus urutan vector
+    std::sort(indicesToRemove.begin(), indicesToRemove.end(), std::greater<int>());
 
+    // 4. Hapus dari data asli
+    for (int index : indicesToRemove) {
+        tasks.removeAt(index);
+    }
+
+    // 5. Simpan dan segarkan halaman
     saveTasks();
 
     searchBox->clear();
@@ -611,27 +648,31 @@ void MainWindow::deleteTask()
     buildCalendar();
     updateStats();
 
-    QMessageBox::information(this, "Berhasil", "Tugas berhasil dihapus.");
+    QMessageBox::information(this, "Berhasil", QString("%1 tugas berhasil dihapus.").arg(indicesToRemove.size()));
 }
 
 void MainWindow::markTaskDone()
 {
-    QListWidgetItem *item = taskList->currentItem();
+    int updatedCount = 0;
 
-    if (!item) {
-        QMessageBox::warning(this, "Peringatan", "Pilih tugas dulu.");
+    // Loop semua item di list dan periksa status centangnya
+    for (int i = 0; i < taskList->count(); ++i) {
+        QListWidgetItem *item = taskList->item(i);
+        if (item && item->checkState() == Qt::Checked) {
+            int index = item->data(Qt::UserRole).toInt();
+            if (index >= 0 && index < tasks.size()) {
+                tasks[index].isDone = !tasks[index].isDone;
+                updatedCount++;
+            }
+        }
+    }
+
+    if (updatedCount == 0) {
+        QMessageBox::warning(this, "Peringatan", "Centang satu atau beberapa kotak tugas terlebih dahulu.");
         return;
     }
 
-    int index = item->data(Qt::UserRole).toInt();
-
-    if (index < 0 || index >= tasks.size()) {
-        QMessageBox::warning(this, "Peringatan", "Data tugas tidak valid.");
-        return;
-    }
-
-    tasks[index].isDone = !tasks[index].isDone;
-
+    // Simpan perubahan dan refresh tampilan
     saveTasks();
     refreshTaskList();
     buildCalendar();
@@ -650,6 +691,8 @@ void MainWindow::refreshTaskList()
         selectedIndex = taskList->currentItem()->data(Qt::UserRole).toInt();
     }
 
+    // Blokir sinyal agar tidak memicu itemChanged secara berulang saat proses clearing
+    taskList->blockSignals(true);
     taskList->clear();
 
     QString search = searchBox->text().trimmed().toLower();
@@ -663,22 +706,30 @@ void MainWindow::refreshTaskList()
         bool categoryOk = selectedCategory == "Semua Kategori" || task.category == selectedCategory;
         bool priorityOk = selectedPriority == "Semua Prioritas" || task.priority == selectedPriority;
 
-        // 💡 FILTER BARU: Menyaring riwayat berdasarkan tombol showHistory
         bool historyFilterOk = false;
         if (showHistory) {
-            // Jika tombol Riwayat aktif, HANYA loloskan tugas yang sudah selesai
             historyFilterOk = task.isDone;
         } else {
-            // Jika tombol Riwayat mati, HANYA loloskan tugas yang belum selesai
             historyFilterOk = !task.isDone;
         }
 
-        // Jalankan pengecekan gabungan (termasuk filter riwayat)
         if (searchOk && categoryOk && priorityOk && historyFilterOk) {
             QListWidgetItem *item = new QListWidgetItem(taskText(task));
             item->setData(Qt::UserRole, i);
 
-            // Logika pewarnaan bawaan kodemu tetap terjaga
+            // 1. Berikan hak akses centang, aktif, dan seleksi
+            item->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+
+            // 2. KUNCI UTAMA 1: Sinkronisasi Tampilan dengan Data Asli
+            // Jika data tugas bernilai true (tercentang), gambarkan dalam keadaan tercentang DAN berwarna biru sebaris
+            if (task.isAlarmActive) {
+                item->setCheckState(Qt::Checked);
+                item->setSelected(true);
+            } else {
+                item->setCheckState(Qt::Unchecked);
+                item->setSelected(false);
+            }
+
             if (task.isDone) {
                 item->setForeground(Qt::gray);
             } else if (countdownText(task) == "Terlambat") {
@@ -693,11 +744,14 @@ void MainWindow::refreshTaskList()
 
             taskList->addItem(item);
 
-            if (i == selectedIndex) {
-                taskList->setCurrentItem(item);
-            }
+            // Baris ini bisa dihapus atau dikomentari agar tidak merusak multi-selection:
+            // if (i == selectedIndex) {
+            //     taskList->setCurrentItem(item);
+            // }
         }
     }
+    // Buka kembali pemblokiran sinyal setelah list selesai digambar ulang
+    taskList->blockSignals(false);
 }
 
 void MainWindow::updateStats()
