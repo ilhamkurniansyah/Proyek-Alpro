@@ -260,8 +260,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     taskList = new QTableWidget;
     taskList->setObjectName("taskList");
-    taskList->setColumnCount(8);
-    taskList->setHorizontalHeaderLabels({"", "Nama Tugas", "Kategori", "Prioritas", "Tanggal", "Waktu Kerjakan", "Deadline", "Status"});
+    taskList->setColumnCount(9);
+    taskList->setHorizontalHeaderLabels({"", "Nama Tugas", "Kategori", "Prioritas", "Tgl Kerjakan", "Jam Kerjakan", "Tgl Deadline", "Jam Deadline", "Status"});
     taskList->setSelectionBehavior(QAbstractItemView::SelectRows);
     taskList->setSelectionMode(QAbstractItemView::MultiSelection);
     taskList->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -270,10 +270,11 @@ MainWindow::MainWindow(QWidget *parent)
     taskList->setColumnWidth(0, 25);
     taskList->setColumnWidth(2, 60);
     taskList->setColumnWidth(3, 60);
-    taskList->setColumnWidth(4, 80);
-    taskList->setColumnWidth(5, 90);   // Waktu Kerjakan — diperlebar
-    taskList->setColumnWidth(6, 75);   // Deadline — ikut diperlebar sedikit biar seimbang
-    taskList->setColumnWidth(7, 90);
+    taskList->setColumnWidth(4, 85);
+    taskList->setColumnWidth(5, 80);
+    taskList->setColumnWidth(6, 85);
+    taskList->setColumnWidth(7, 80);
+    taskList->setColumnWidth(8, 90);
     taskList->verticalHeader()->setVisible(false);
     taskList->setShowGrid(true);
     taskList->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
@@ -334,7 +335,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(themeButton, &QPushButton::clicked, this, [=]() {
         darkMode = !darkMode;
         applyTheme();
-        buildCalendar();  // <-- tambahkan baris ini
+        buildCalendar();
 
         if (darkMode) {
             themeButton->setText("☀️ Light");
@@ -518,8 +519,9 @@ QString MainWindow::taskText(const TaskData &task) const
     return task.title + " | " +
            task.category + " | " +
            task.priority + " | " +
-           task.reminderDate.toString("dd MMM yyyy") + " | " +
+           task.workDate.toString("dd MMM yyyy") + " | " +
            task.workTime.toString("hh:mm") + " | " +
+           task.reminderDate.toString("dd MMM yyyy") + " | " +
            task.reminderTime.toString("hh:mm") + " | " +
            status;
 }
@@ -589,10 +591,8 @@ void MainWindow::openTaskDialog(int editIndex, QDate selectedDate)
 {
     QDialog dialog(this);
     dialog.setWindowTitle(editIndex >= 0 ? "Edit Tugas" : "Tambah Tugas");
-    dialog.resize(380, 300);
+    dialog.resize(380, 340);
 
-    // FIX: Pastikan dialog tidak mewarisi event filter dari MainWindow
-    // dengan menggunakan Qt::Dialog flag secara eksplisit
     dialog.setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
 
     dialog.setStyleSheet(
@@ -676,10 +676,10 @@ void MainWindow::openTaskDialog(int editIndex, QDate selectedDate)
     QComboBox *priorityInput = new QComboBox;
     priorityInput->addItems({"Tinggi", "Sedang", "Rendah", "Normal"});
 
-    QDateEdit *dateInput = new QDateEdit;
-    dateInput->setCalendarPopup(true);
-    dateInput->setDisplayFormat("dd MMMM yyyy");
-    dateInput->calendarWidget()->setStyleSheet(
+    QDateEdit *workDateInput = new QDateEdit;
+    workDateInput->setCalendarPopup(true);
+    workDateInput->setDisplayFormat("dd MMMM yyyy");
+    workDateInput->calendarWidget()->setStyleSheet(
         "QCalendarWidget QWidget { background-color: #1E1E1E; color: white; }"
         "QCalendarWidget QMenu { background-color: #1E1E1E; color: white; }"
         "QCalendarWidget QSpinBox { color: white; background-color: #121212; }"
@@ -688,13 +688,20 @@ void MainWindow::openTaskDialog(int editIndex, QDate selectedDate)
     QTimeEdit *workTimeInput = new QTimeEdit;
     workTimeInput->setDisplayFormat("HH:mm");
     workTimeInput->setTime(QTime(8, 0));
-    // FIX: Pastikan QTimeEdit bisa menerima input dengan benar
     workTimeInput->setKeyboardTracking(true);
     workTimeInput->setWrapping(true);
 
+    QDateEdit *deadlineDateInput = new QDateEdit;
+    deadlineDateInput->setCalendarPopup(true);
+    deadlineDateInput->setDisplayFormat("dd MMMM yyyy");
+    deadlineDateInput->calendarWidget()->setStyleSheet(
+        "QCalendarWidget QWidget { background-color: #1E1E1E; color: white; }"
+        "QCalendarWidget QMenu { background-color: #1E1E1E; color: white; }"
+        "QCalendarWidget QSpinBox { color: white; background-color: #121212; }"
+        );
+
     QTimeEdit *timeInput = new QTimeEdit;
     timeInput->setDisplayFormat("HH:mm");
-    // FIX: Pastikan QTimeEdit bisa menerima input dengan benar
     timeInput->setKeyboardTracking(true);
     timeInput->setWrapping(true);
 
@@ -703,11 +710,14 @@ void MainWindow::openTaskDialog(int editIndex, QDate selectedDate)
         taskInput->setText(task.title);
         categoryInput->setCurrentText(task.category);
         priorityInput->setCurrentText(task.priority);
-        dateInput->setDate(task.reminderDate);
+        workDateInput->setDate(task.workDate.isValid() ? task.workDate : task.reminderDate);
         workTimeInput->setTime(task.workTime.isValid() ? task.workTime : QTime(8, 0));
+        deadlineDateInput->setDate(task.reminderDate);
         timeInput->setTime(task.reminderTime);
     } else {
-        dateInput->setDate(selectedDate.isValid() ? selectedDate : QDate::currentDate());
+        QDate defaultDate = selectedDate.isValid() ? selectedDate : QDate::currentDate();
+        workDateInput->setDate(defaultDate);
+        deadlineDateInput->setDate(defaultDate);
         timeInput->setTime(QTime::currentTime());
     }
 
@@ -715,9 +725,10 @@ void MainWindow::openTaskDialog(int editIndex, QDate selectedDate)
     form->addRow("Nama Tugas:", taskInput);
     form->addRow("Kategori:", categoryInput);
     form->addRow("Prioritas:", priorityInput);
-    form->addRow("Tanggal:", dateInput);
-    form->addRow("Waktu Kerjakan:", workTimeInput);
-    form->addRow("Deadline (Jam):", timeInput);
+    form->addRow("Tanggal Kerjakan:", workDateInput);
+    form->addRow("Jam Kerjakan:", workTimeInput);
+    form->addRow("Tanggal Deadline:", deadlineDateInput);
+    form->addRow("Jam Deadline:", timeInput);
 
     QDialogButtonBox *buttonBox = new QDialogButtonBox(
         QDialogButtonBox::Ok | QDialogButtonBox::Cancel
@@ -751,12 +762,14 @@ void MainWindow::openTaskDialog(int editIndex, QDate selectedDate)
         task.title = title;
         task.category = categoryInput->currentText();
         task.priority = priorityInput->currentText();
-        task.reminderDate = dateInput->date();
+        task.workDate = workDateInput->date();
         task.workTime = workTimeInput->time();
+        task.reminderDate = deadlineDateInput->date();
         task.reminderTime = timeInput->time();
 
         if (editIndex >= 0 && editIndex < tasks.size()) {
             task.isDone = tasks[editIndex].isDone;
+            task.isAlarmActive = tasks[editIndex].isAlarmActive;
             tasks[editIndex] = task;
         } else {
             task.isDone = false;
@@ -933,22 +946,29 @@ void MainWindow::refreshTaskList()
         priItem->setTextAlignment(Qt::AlignCenter);
         taskList->setItem(row, 3, priItem);
 
-        // Kolom 4: Tanggal
-        QTableWidgetItem *dateItem = new QTableWidgetItem(task.reminderDate.toString("dd MMM yyyy"));
-        dateItem->setTextAlignment(Qt::AlignCenter);
-        taskList->setItem(row, 4, dateItem);
+        // Kolom 4: Tanggal Kerjakan
+        QTableWidgetItem *workDateItem = new QTableWidgetItem(
+            task.workDate.isValid() ? task.workDate.toString("dd MMM yyyy") : task.reminderDate.toString("dd MMM yyyy")
+            );
+        workDateItem->setTextAlignment(Qt::AlignCenter);
+        taskList->setItem(row, 4, workDateItem);
 
-        // Kolom 5: Waktu Kerjakan
+        // Kolom 5: Jam Kerjakan
         QTableWidgetItem *workTimeItem = new QTableWidgetItem(task.workTime.toString("hh:mm"));
         workTimeItem->setTextAlignment(Qt::AlignCenter);
         taskList->setItem(row, 5, workTimeItem);
 
-        // Kolom 6: Deadline
+        // Kolom 6: Tanggal Deadline
+        QTableWidgetItem *deadlineDateItem = new QTableWidgetItem(task.reminderDate.toString("dd MMM yyyy"));
+        deadlineDateItem->setTextAlignment(Qt::AlignCenter);
+        taskList->setItem(row, 6, deadlineDateItem);
+
+        // Kolom 7: Jam Deadline
         QTableWidgetItem *timeItem = new QTableWidgetItem(task.reminderTime.toString("hh:mm"));
         timeItem->setTextAlignment(Qt::AlignCenter);
-        taskList->setItem(row, 6, timeItem);
+        taskList->setItem(row, 7, timeItem);
 
-        // Kolom 7: Status
+        // Kolom 8: Status
         QString statusText;
         if (task.isDone) {
             statusText = "Selesai";
@@ -959,7 +979,7 @@ void MainWindow::refreshTaskList()
         }
         QTableWidgetItem *statusItem = new QTableWidgetItem(statusText);
         statusItem->setTextAlignment(Qt::AlignCenter);
-        taskList->setItem(row, 7, statusItem);
+        taskList->setItem(row, 8, statusItem);
 
         // Warna baris
         QColor rowColor;
@@ -974,7 +994,7 @@ void MainWindow::refreshTaskList()
             rowColor = darkMode ? QColor("#93C5FD") : QColor("#1D4ED8");
         }
 
-        for (int col = 0; col < 8; col++) {
+        for (int col = 0; col < 9; col++) {
             if (taskList->item(row, col)) {
                 taskList->item(row, col)->setForeground(rowColor);
             }
@@ -1152,9 +1172,6 @@ void MainWindow::buildCalendar()
     }
 }
 
-// FIX: checkNotifications sekarang ada dua notifikasi:
-//      1. Waktu mengerjakan (_work)
-//      2. Deadline (_deadline) — BARU
 void MainWindow::checkNotifications()
 {
     QDateTime current = QDateTime::currentDateTime();
@@ -1167,7 +1184,8 @@ void MainWindow::checkNotifications()
         }
 
         // --- Notifikasi WAKTU MENGERJAKAN ---
-        if (task.reminderDate == today &&
+        QDate workDateToCheck = task.workDate.isValid() ? task.workDate : task.reminderDate;
+        if (workDateToCheck == today &&
             task.workTime.isValid() &&
             task.workTime.hour()   == now.hour() &&
             task.workTime.minute() == now.minute()) {
@@ -1202,8 +1220,6 @@ void MainWindow::checkNotifications()
     }
 }
 
-// FIX: startAlarm sekarang menerima parameter isDeadline
-//      untuk membedakan judul popup dan warna
 void MainWindow::startAlarm(const QString &message, bool isDeadline)
 {
     currentAlarmTask = message;
@@ -1289,8 +1305,10 @@ void MainWindow::showTasksByDate(const QDate &date)
             message += "• " + task.title
                        + "\nKategori: " + task.category
                        + "\nPrioritas: " + task.priority
-                       + "\nWaktu Kerjakan: " + task.workTime.toString("HH:mm")
-                       + "\nDeadline: " + task.reminderTime.toString("HH:mm")
+                       + "\nTgl Kerjakan: " + (task.workDate.isValid() ? task.workDate.toString("dd MMM yyyy") : task.reminderDate.toString("dd MMM yyyy"))
+                       + "\nJam Kerjakan: " + task.workTime.toString("HH:mm")
+                       + "\nTgl Deadline: " + task.reminderDate.toString("dd MMM yyyy")
+                       + "\nJam Deadline: " + task.reminderTime.toString("HH:mm")
                        + "\nStatus: " + QString(task.isDone ? "Selesai" : "Belum selesai")
                        + "\n\n";
         }
@@ -1312,8 +1330,6 @@ void MainWindow::showTasksByDate(const QDate &date)
     }
 }
 
-// FIX: eventFilter diperbaiki agar tidak intercept klik pada widget
-//      di dalam dialog (termasuk spin button QTimeEdit)
 bool MainWindow::eventFilter(QObject *obj, QEvent *event)
 {
     // Blokir scroll pada combobox filter
@@ -1321,13 +1337,9 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
         return true;
     }
 
-    // Hanya proses klik pada dateBox kalender —
-    // cek apakah obj punya properti "date" yang benar-benar QDate valid
     if (event->type() == QEvent::MouseButtonPress) {
         QVariant dateValue = obj->property("date");
 
-        // FIX: tambahkan canConvert dan isValid agar widget lain
-        //      (termasuk spin button QTimeEdit) tidak ikut ter-intercept
         if (dateValue.isValid() && dateValue.canConvert<QDate>()) {
             QDate date = dateValue.toDate();
             if (date.isValid()) {
@@ -1835,6 +1847,7 @@ void MainWindow::saveTasks()
         settings.setValue("title", tasks[i].title);
         settings.setValue("category", tasks[i].category);
         settings.setValue("priority", tasks[i].priority);
+        settings.setValue("workDate", tasks[i].workDate);
         settings.setValue("date", tasks[i].reminderDate);
         settings.setValue("workTime", tasks[i].workTime);
         settings.setValue("time", tasks[i].reminderTime);
@@ -1860,6 +1873,11 @@ void MainWindow::loadTasks()
         task.category = settings.value("category").toString();
         task.priority = settings.value("priority").toString();
         task.reminderDate = settings.value("date").toDate();
+        task.workDate = settings.value("workDate").toDate();
+        // Fallback untuk data lama yang belum punya workDate
+        if (!task.workDate.isValid()) {
+            task.workDate = task.reminderDate;
+        }
         task.workTime = settings.value("workTime").toTime();
         task.reminderTime = settings.value("time").toTime();
         task.isDone = settings.value("done").toBool();

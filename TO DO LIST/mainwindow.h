@@ -26,6 +26,7 @@ struct TaskData
     QString title;
     QString category;
     QString priority;
+    QDate workDate;
     QDate reminderDate;
     QTime reminderTime;
     QTime workTime;
