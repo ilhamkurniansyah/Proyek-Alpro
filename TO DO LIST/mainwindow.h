@@ -7,11 +7,11 @@
 #include <QTime>
 #include <QLabel>
 #include <QComboBox>
-#include <QListWidget>
 #include <QGridLayout>
 #include <QTimer>
 #include <QSet>
-#include <QList>
+#include <QTableWidget>
+#include <QHeaderView>
 #include <QString>
 #include <QVBoxLayout>
 #include <QEvent>
@@ -28,6 +28,7 @@ struct TaskData
     QString priority;
     QDate reminderDate;
     QTime reminderTime;
+    QTime workTime;
     bool isDone = false;
     bool isAlarmActive = false;
 };
@@ -79,7 +80,7 @@ private:
     QComboBox *priorityBox;
     QLineEdit *searchBox;
 
-    QListWidget *taskList;
+    QTableWidget *taskList;
     QGridLayout *calendarGrid;
 
     QTimer *notificationTimer;
@@ -112,10 +113,10 @@ private:
 
     void buildCalendar();
     void clearCalendar();
-    void addTaskToCalendarBox(QVBoxLayout *boxLayout, const QDate &date);
+    void addTaskToCalendarBox(QLayout *Layout, const QDate &date);
 
     void checkNotifications();
-    void startAlarm(const QString &taskTitle);
+    void startAlarm(const QString &message, bool isDeadline = false);
     void stopAlarm();
     void chooseAlarmSound();
 

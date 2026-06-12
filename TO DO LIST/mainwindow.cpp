@@ -11,8 +11,9 @@
 #include <QHBoxLayout>
 #include <QGridLayout>
 #include <QMessageBox>
-#include <QListWidget>
-#include <QListWidgetItem>
+#include <QTableWidget>
+#include <QTableWidgetItem>
+#include <QHeaderView>
 #include <QDate>
 #include <QTime>
 #include <QDateTime>
@@ -35,6 +36,8 @@
 #include <QUrl>
 #include <QMediaPlayer>
 #include <QAudioOutput>
+#include <QCalendarWidget>
+#include <QScrollArea>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), currentDate(QDate::currentDate())
@@ -47,8 +50,8 @@ MainWindow::MainWindow(QWidget *parent)
     root->setObjectName("root");
 
     QVBoxLayout *mainLayout = new QVBoxLayout(root);
-    mainLayout->setContentsMargins(18, 10, 18, 10);
-    mainLayout->setSpacing(8);
+    mainLayout->setContentsMargins(18, 10, 18, 0);
+    mainLayout->setSpacing(6);
 
     QLabel *title = new QLabel("To-Do List Saya");
     title->setObjectName("title");
@@ -183,14 +186,15 @@ MainWindow::MainWindow(QWidget *parent)
     scrollArea->setWidget(calendarPanel);
     scrollArea->setFrameShape(QFrame::NoFrame);
 
-    contentLayout->addWidget(scrollArea, 3);
+    contentLayout->addWidget(scrollArea, 2);
 
     QFrame *controlPanel = new QFrame;
     controlPanel->setObjectName("panel");
+    controlPanel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     QVBoxLayout *panelLayout = new QVBoxLayout(controlPanel);
-    panelLayout->setContentsMargins(20, 14, 20, 14);
-    panelLayout->setSpacing(10);
+    panelLayout->setContentsMargins(20, 14, 20, 0);
+    panelLayout->setSpacing(8);
 
     QHBoxLayout *buttonLayout = new QHBoxLayout;
     buttonLayout->setSpacing(8);
@@ -212,7 +216,6 @@ MainWindow::MainWindow(QWidget *parent)
     themeButton->setObjectName("themeBtn");
 
     historyButton = new QPushButton(this);
-
 
     historyButton->setText("📋 Menampilkan: Tugas Aktif (Klik untuk melihat Riwayat)");
     historyButton->setStyleSheet("background-color: #17a2b8; color: white; font-weight: bold; padding: 6px; border-radius: 5px;");
@@ -236,7 +239,7 @@ MainWindow::MainWindow(QWidget *parent)
     buttonLayout->addWidget(editButton);
     buttonLayout->addWidget(deleteButton);
     buttonLayout->addWidget(doneButton);
-    buttonLayout->addWidget(notifButton);
+    notifButton->hide();
     buttonLayout->addWidget(soundButton);
     buttonLayout->addWidget(themeButton);
 
@@ -245,15 +248,39 @@ MainWindow::MainWindow(QWidget *parent)
 
     categoryBox = new QComboBox;
     categoryBox->addItems({"Semua Kategori", "Kuliah", "Kerja", "Pribadi", "Umum"});
+    categoryBox->setMaxVisibleItems(10);
+    categoryBox->view()->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    categoryBox->installEventFilter(this);
 
     priorityBox = new QComboBox;
     priorityBox->addItems({"Semua Prioritas", "Tinggi", "Sedang", "Rendah", "Normal"});
+    priorityBox->setMaxVisibleItems(10);
+    priorityBox->view()->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    priorityBox->installEventFilter(this);
 
-    taskList = new QListWidget;
+    taskList = new QTableWidget;
     taskList->setObjectName("taskList");
+    taskList->setColumnCount(8);
+    taskList->setHorizontalHeaderLabels({"", "Nama Tugas", "Kategori", "Prioritas", "Tanggal", "Waktu Kerjakan", "Deadline", "Status"});
+    taskList->setSelectionBehavior(QAbstractItemView::SelectRows);
     taskList->setSelectionMode(QAbstractItemView::MultiSelection);
-    taskList->setMinimumHeight(260);
-    taskList->setMaximumHeight(420);
+    taskList->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    taskList->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
+    taskList->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    taskList->setColumnWidth(0, 25);
+    taskList->setColumnWidth(2, 60);
+    taskList->setColumnWidth(3, 60);
+    taskList->setColumnWidth(4, 80);
+    taskList->setColumnWidth(5, 90);   // Waktu Kerjakan — diperlebar
+    taskList->setColumnWidth(6, 75);   // Deadline — ikut diperlebar sedikit biar seimbang
+    taskList->setColumnWidth(7, 90);
+    taskList->verticalHeader()->setVisible(false);
+    taskList->setShowGrid(true);
+    taskList->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+    taskList->setWordWrap(true);
+    taskList->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    taskList->setMinimumHeight(0);
+    taskList->setAlternatingRowColors(true);
 
     QLabel *taskTitle = new QLabel("Daftar Tugas");
     taskTitle->setObjectName("smallTitle");
@@ -264,11 +291,10 @@ MainWindow::MainWindow(QWidget *parent)
     panelLayout->addWidget(priorityBox);
     panelLayout->addWidget(taskTitle);
     panelLayout->addWidget(taskList);
-    panelLayout->addStretch();
 
-    contentLayout->addWidget(controlPanel, 2);
+    contentLayout->addWidget(controlPanel, 3);
 
-    mainLayout->addLayout(contentLayout, 1);
+    mainLayout->addLayout(contentLayout, 10);
 
     setCentralWidget(root);
 
@@ -276,70 +302,99 @@ MainWindow::MainWindow(QWidget *parent)
     connect(editButton, &QPushButton::clicked, this, &MainWindow::editTask);
     connect(deleteButton, &QPushButton::clicked, this, &MainWindow::deleteTask);
     connect(doneButton, &QPushButton::clicked, this, &MainWindow::markTaskDone);
+
     connect(notifButton, &QPushButton::clicked, this, [=]() {
-    QListWidgetItem *item = taskList->currentItem();
-    if (!item) {
-        QMessageBox::warning(this, "Peringatan", "Pilih salah satu tugas terlebih dahulu untuk mengecek alarm.");
-        return;
-    }
+        QTableWidgetItem *item = taskList->currentItem();
+        if (!item) {
+            QMessageBox msgBox(this);
+            msgBox.setWindowTitle("Peringatan");
+            msgBox.setText("Pilih salah satu tugas terlebih dahulu untuk mengecek alarm.");
+            msgBox.setIcon(QMessageBox::Warning);
+            msgBox.setStyleSheet(
+                "QMessageBox { background-color: #121212; }"
+                "QLabel { color: #FFFFFF; font-size: 12px; font-weight: bold; }"
+                "QPushButton { background-color: #2979FF; color: white; border-radius: 4px; padding: 5px 15px; font-weight: bold; min-width: 65px; }"
+                "QPushButton:hover { background-color: #1565C0; }"
+                );
+            msgBox.exec();
+            return;
+        }
 
-    int index = item->data(Qt::UserRole).toInt();
-    if (index >= 0 && index < tasks.size()) {
-        tasks[index].isAlarmActive = true;
+        int index = item->data(Qt::UserRole).toInt();
+        if (index >= 0 && index < tasks.size()) {
+            tasks[index].isAlarmActive = true;
+            saveTasks();
+            checkNotifications();
+            refreshTaskList();
+        }
+    });
 
-        saveTasks();
-
-        checkNotifications();
-        refreshTaskList();
-    }
-});
     connect(soundButton, &QPushButton::clicked, this, &MainWindow::chooseAlarmSound);
 
     connect(themeButton, &QPushButton::clicked, this, [=]() {
-    darkMode = !darkMode;
-    applyTheme();
+        darkMode = !darkMode;
+        applyTheme();
+        buildCalendar();  // <-- tambahkan baris ini
 
-    if (darkMode) {
-        themeButton->setText("☀️ Light");
-    } else {
-        themeButton->setText("🌙 Dark");
-    }
-});
+        if (darkMode) {
+            themeButton->setText("☀️ Light");
+        } else {
+            themeButton->setText("🌙 Dark");
+        }
+    });
+
+    this->setStyleSheet(this->styleSheet() +
+                        "QMessageBox {"
+                        "   background-color: #121212;"
+                        "}"
+                        "QMessageBox QLabel {"
+                        "   color: #FFFFFF;"
+                        "   font-size: 12px;"
+                        "}"
+                        "QMessageBox QPushButton {"
+                        "   background-color: #2979FF;"
+                        "   color: white;"
+                        "   border-radius: 4px;"
+                        "   padding: 5px 15px;"
+                        "   font-weight: bold;"
+                        "   min-width: 65px;"
+                        "}"
+                        "QMessageBox QPushButton:hover {"
+                        "   background-color: #1565C0;"
+                        "}"
+                        );
 
     connect(searchBox, &QLineEdit::textChanged, this, &MainWindow::refreshTaskList);
     connect(categoryBox, &QComboBox::currentTextChanged, this, &MainWindow::refreshTaskList);
     connect(priorityBox, &QComboBox::currentTextChanged, this, &MainWindow::refreshTaskList);
 
     connect(prevButton, &QPushButton::clicked, this, [=]() {
-    currentDate = currentDate.addMonths(-1);
-    buildCalendar();
-    buildScheduleView();
-});
+        currentDate = currentDate.addMonths(-1);
+        buildCalendar();
+        buildScheduleView();
+    });
 
     connect(nextButton, &QPushButton::clicked, this, [=]() {
-    currentDate = currentDate.addMonths(1);
-    buildCalendar();
-    buildScheduleView();
-});
+        currentDate = currentDate.addMonths(1);
+        buildCalendar();
+        buildScheduleView();
+    });
 
     connect(todayButton, &QPushButton::clicked, this, [=]() {
-    currentDate = QDate::currentDate();
-    buildCalendar();
+        currentDate = QDate::currentDate();
+        buildCalendar();
         buildScheduleView();
-});
+    });
 
     notificationTimer = new QTimer(this);
 
     connect(notificationTimer, &QTimer::timeout, this, [=]() {
-    checkNotifications();
-    updateStats();
-    //refreshTaskList();
-    buildCalendar();
-    buildScheduleView();
-});
+        checkNotifications();
+        updateStats();
+        buildScheduleView();
+    });
 
     notificationTimer->start(1000);
-
 
     alarmAudio = new QAudioOutput(this);
     alarmAudio->setVolume(0.9);
@@ -376,35 +431,19 @@ MainWindow::MainWindow(QWidget *parent)
     updateStats();
     applyTheme();
 
-    // GANTI LOGIKA: Sekarang menggunakan itemClicked agar sekali klik langsung Biru + Centang
-    connect(taskList, &QListWidget::itemClicked, this, [this](QListWidgetItem *item) {
+    connect(taskList, &QTableWidget::itemClicked, this, [this](QTableWidgetItem *item) {
         if (!item) return;
-
-        // Ambil indeks asli tugas dari data struct
-        int index = item->data(Qt::UserRole).toInt();
+        int row = item->row();
+        QTableWidgetItem *checkItem = taskList->item(row, 0);
+        if (!checkItem) return;
+        int index = checkItem->data(Qt::UserRole).toInt();
         if (index >= 0 && index < tasks.size()) {
-
-            // Blokir sinyal list widget sementara agar tidak memicu refresh loop
             taskList->blockSignals(true);
-
-            // Cek kondisi centang saat ini, lalu balikkan nilainya (toggle)
-            bool currentChecked = (item->checkState() == Qt::Checked);
-            bool newChecked = !currentChecked;
-
-            // 1. Set centang kotak kecilnya
-            item->setCheckState(newChecked ? Qt::Checked : Qt::Unchecked);
-
-            // 2. Set warna biru sebaris (Selected) agar sinkron dengan centangnya
-            item->setSelected(newChecked);
-
-            // Simpan status baru ini ke data asli (isAlarmActive) agar permanen
+            bool newChecked = !(checkItem->checkState() == Qt::Checked);
+            checkItem->setCheckState(newChecked ? Qt::Checked : Qt::Unchecked);
             tasks[index].isAlarmActive = newChecked;
             saveTasks();
-
-            // Buka kembali blokir sinyal
             taskList->blockSignals(false);
-
-            // Perbarui statistik tanpa menggambar ulang list widget agar birunya tidak hilang
             updateStats();
         }
     });
@@ -462,7 +501,6 @@ QString MainWindow::countdownText(const TaskData &task) const
     return QString("%1 menit %2 detik lagi").arg(minutes).arg(secs);
 }
 
-
 QString MainWindow::taskText(const TaskData &task) const
 {
     QString status;
@@ -481,9 +519,11 @@ QString MainWindow::taskText(const TaskData &task) const
            task.category + " | " +
            task.priority + " | " +
            task.reminderDate.toString("dd MMM yyyy") + " | " +
+           task.workTime.toString("hh:mm") + " | " +
            task.reminderTime.toString("hh:mm") + " | " +
            status;
 }
+
 void MainWindow::addTask()
 {
     openTaskDialog(-1);
@@ -491,17 +531,54 @@ void MainWindow::addTask()
 
 void MainWindow::editTask()
 {
-    QListWidgetItem *item = taskList->currentItem();
+    int currentRow = taskList->currentRow();
+
+    if (currentRow < 0) {
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle("Peringatan");
+        msgBox.setText("Pilih tugas yang ingin diedit.");
+        msgBox.setIcon(QMessageBox::Warning);
+        msgBox.setStyleSheet(
+            "QMessageBox { background-color: #121212; }"
+            "QLabel { color: #FFFFFF; font-size: 12px; font-weight: bold; }"
+            "QPushButton { background-color: #2979FF; color: white; border-radius: 4px; padding: 5px 15px; font-weight: bold; min-width: 65px; }"
+            "QPushButton:hover { background-color: #1565C0; }"
+            );
+        msgBox.exec();
+        return;
+    }
+
+    QTableWidgetItem *item = taskList->item(currentRow, 0);
 
     if (!item) {
-        QMessageBox::warning(this, "Peringatan", "Pilih tugas yang ingin diedit.");
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle("Peringatan");
+        msgBox.setText("Data tugas tidak valid.");
+        msgBox.setIcon(QMessageBox::Warning);
+        msgBox.setStyleSheet(
+            "QMessageBox { background-color: #121212; }"
+            "QLabel { color: #FFFFFF; font-size: 12px; font-weight: bold; }"
+            "QPushButton { background-color: #2979FF; color: white; border-radius: 4px; padding: 5px 15px; font-weight: bold; min-width: 65px; }"
+            "QPushButton:hover { background-color: #1565C0; }"
+            );
+        msgBox.exec();
         return;
     }
 
     int index = item->data(Qt::UserRole).toInt();
 
     if (index < 0 || index >= tasks.size()) {
-        QMessageBox::warning(this, "Peringatan", "Data tugas tidak valid.");
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle("Peringatan");
+        msgBox.setText("Data tugas tidak valid.");
+        msgBox.setIcon(QMessageBox::Warning);
+        msgBox.setStyleSheet(
+            "QMessageBox { background-color: #121212; }"
+            "QLabel { color: #FFFFFF; font-size: 12px; font-weight: bold; }"
+            "QPushButton { background-color: #2979FF; color: white; border-radius: 4px; padding: 5px 15px; font-weight: bold; min-width: 65px; }"
+            "QPushButton:hover { background-color: #1565C0; }"
+            );
+        msgBox.exec();
         return;
     }
 
@@ -512,7 +589,81 @@ void MainWindow::openTaskDialog(int editIndex, QDate selectedDate)
 {
     QDialog dialog(this);
     dialog.setWindowTitle(editIndex >= 0 ? "Edit Tugas" : "Tambah Tugas");
-    dialog.resize(380, 260);
+    dialog.resize(380, 300);
+
+    // FIX: Pastikan dialog tidak mewarisi event filter dari MainWindow
+    // dengan menggunakan Qt::Dialog flag secara eksplisit
+    dialog.setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
+
+    dialog.setStyleSheet(
+        "QDialog {"
+        "   background-color: #121212;"
+        "}"
+        "QLabel {"
+        "   color: #FFFFFF;"
+        "   font-weight: bold;"
+        "}"
+        "QLineEdit, QComboBox, QDateEdit, QTimeEdit {"
+        "   background-color: #1E1E1E;"
+        "   color: #FFFFFF;"
+        "   border: 1px solid #333333;"
+        "   border-radius: 4px;"
+        "   padding: 4px;"
+        "}"
+        "QAbstractSpinBox {"
+        "   background-color: #1E1E1E;"
+        "   color: #FFFFFF;"
+        "   border: 1px solid #333333;"
+        "   border-radius: 4px;"
+        "   padding: 4px;"
+        "}"
+        "QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {"
+        "   background-color: #2A2A2A;"
+        "   border: 1px solid #444444;"
+        "   width: 16px;"
+        "}"
+        "QAbstractSpinBox::up-button:hover, QAbstractSpinBox::down-button:hover {"
+        "   background-color: #3A3A3A;"
+        "}"
+        "QAbstractSpinBox::up-arrow {"
+        "   image: none;"
+        "   border-left: 4px solid transparent;"
+        "   border-right: 4px solid transparent;"
+        "   border-bottom: 5px solid #FFFFFF;"
+        "   width: 0; height: 0;"
+        "}"
+        "QAbstractSpinBox::down-arrow {"
+        "   image: none;"
+        "   border-left: 4px solid transparent;"
+        "   border-right: 4px solid transparent;"
+        "   border-top: 5px solid #FFFFFF;"
+        "   width: 0; height: 0;"
+        "}"
+        "QComboBox QAbstractItemView {"
+        "   background-color: #1E1E1E;"
+        "   color: #FFFFFF;"
+        "   selection-background-color: #2979FF;"
+        "}"
+        "QPushButton {"
+        "   color: white;"
+        "   border-radius: 4px;"
+        "   padding: 6px 14px;"
+        "   font-weight: bold;"
+        "   min-width: 70px;"
+        "}"
+        "QPushButton[text=\"OK\"] {"
+        "   background-color: #00A650;"
+        "}"
+        "QPushButton[text=\"OK\"]:hover {"
+        "   background-color: #008540;"
+        "}"
+        "QPushButton[text=\"Cancel\"] {"
+        "   background-color: #E60000;"
+        "}"
+        "QPushButton[text=\"Cancel\"]:hover {"
+        "   background-color: #B30000;"
+        "}"
+        );
 
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
 
@@ -528,9 +679,24 @@ void MainWindow::openTaskDialog(int editIndex, QDate selectedDate)
     QDateEdit *dateInput = new QDateEdit;
     dateInput->setCalendarPopup(true);
     dateInput->setDisplayFormat("dd MMMM yyyy");
+    dateInput->calendarWidget()->setStyleSheet(
+        "QCalendarWidget QWidget { background-color: #1E1E1E; color: white; }"
+        "QCalendarWidget QMenu { background-color: #1E1E1E; color: white; }"
+        "QCalendarWidget QSpinBox { color: white; background-color: #121212; }"
+        );
+
+    QTimeEdit *workTimeInput = new QTimeEdit;
+    workTimeInput->setDisplayFormat("HH:mm");
+    workTimeInput->setTime(QTime(8, 0));
+    // FIX: Pastikan QTimeEdit bisa menerima input dengan benar
+    workTimeInput->setKeyboardTracking(true);
+    workTimeInput->setWrapping(true);
 
     QTimeEdit *timeInput = new QTimeEdit;
     timeInput->setDisplayFormat("HH:mm");
+    // FIX: Pastikan QTimeEdit bisa menerima input dengan benar
+    timeInput->setKeyboardTracking(true);
+    timeInput->setWrapping(true);
 
     if (editIndex >= 0 && editIndex < tasks.size()) {
         TaskData task = tasks[editIndex];
@@ -538,6 +704,7 @@ void MainWindow::openTaskDialog(int editIndex, QDate selectedDate)
         categoryInput->setCurrentText(task.category);
         priorityInput->setCurrentText(task.priority);
         dateInput->setDate(task.reminderDate);
+        workTimeInput->setTime(task.workTime.isValid() ? task.workTime : QTime(8, 0));
         timeInput->setTime(task.reminderTime);
     } else {
         dateInput->setDate(selectedDate.isValid() ? selectedDate : QDate::currentDate());
@@ -549,7 +716,8 @@ void MainWindow::openTaskDialog(int editIndex, QDate selectedDate)
     form->addRow("Kategori:", categoryInput);
     form->addRow("Prioritas:", priorityInput);
     form->addRow("Tanggal:", dateInput);
-    form->addRow("Jam:", timeInput);
+    form->addRow("Waktu Kerjakan:", workTimeInput);
+    form->addRow("Deadline (Jam):", timeInput);
 
     QDialogButtonBox *buttonBox = new QDialogButtonBox(
         QDialogButtonBox::Ok | QDialogButtonBox::Cancel
@@ -565,7 +733,17 @@ void MainWindow::openTaskDialog(int editIndex, QDate selectedDate)
         QString title = taskInput->text().trimmed();
 
         if (title.isEmpty()) {
-            QMessageBox::warning(this, "Peringatan", "Nama tugas tidak boleh kosong.");
+            QMessageBox msgBox(this);
+            msgBox.setWindowTitle("Peringatan");
+            msgBox.setText("Nama tugas tidak boleh kosong.");
+            msgBox.setIcon(QMessageBox::Warning);
+            msgBox.setStyleSheet(
+                "QMessageBox { background-color: #121212; }"
+                "QLabel { color: #FFFFFF; font-size: 12px; font-weight: bold; }"
+                "QPushButton { background-color: #2979FF; color: white; border-radius: 4px; padding: 5px 15px; font-weight: bold; min-width: 65px; }"
+                "QPushButton:hover { background-color: #1565C0; }"
+                );
+            msgBox.exec();
             return;
         }
 
@@ -574,6 +752,7 @@ void MainWindow::openTaskDialog(int editIndex, QDate selectedDate)
         task.category = categoryInput->currentText();
         task.priority = priorityInput->currentText();
         task.reminderDate = dateInput->date();
+        task.workTime = workTimeInput->time();
         task.reminderTime = timeInput->time();
 
         if (editIndex >= 0 && editIndex < tasks.size()) {
@@ -599,11 +778,10 @@ void MainWindow::openTaskDialog(int editIndex, QDate selectedDate)
 
 void MainWindow::deleteTask()
 {
-    // 1. Cari tahu tugas mana saja yang sedang DICENTANG kotak kecilnya
     QList<int> indicesToRemove;
 
-    for (int i = 0; i < taskList->count(); ++i) {
-        QListWidgetItem *item = taskList->item(i);
+    for (int i = 0; i < taskList->rowCount(); ++i) {
+        QTableWidgetItem *item = taskList->item(i, 0);
         if (item && item->checkState() == Qt::Checked) {
             int index = item->data(Qt::UserRole).toInt();
             if (index >= 0 && index < tasks.size()) {
@@ -613,66 +791,93 @@ void MainWindow::deleteTask()
     }
 
     if (indicesToRemove.isEmpty()) {
-        QMessageBox::warning(this, "Peringatan", "Centang satu atau beberapa kotak tugas yang ingin dihapus terlebih dahulu.");
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle("Peringatan");
+        msgBox.setText("Centang satu atau beberapa kotak tugas yang ingin dihapus terlebih dahulu.");
+        msgBox.setIcon(QMessageBox::Warning);
+        msgBox.setStyleSheet(
+            "QMessageBox { background-color: #121212; }"
+            "QLabel { color: #FFFFFF; font-size: 12px; font-weight: bold; }"
+            "QPushButton { background-color: #2979FF; color: white; border-radius: 4px; padding: 5px 15px; font-weight: bold; min-width: 65px; }"
+            "QPushButton:hover { background-color: #1565C0; }"
+            );
+        msgBox.exec();
         return;
     }
 
-    // 2. Konfirmasi hapus
-    int confirm = QMessageBox::question(
-        this,
-        "Konfirmasi Hapus Massal",
-        QString("Yakin ingin menghapus %1 tugas yang dicentang?").arg(indicesToRemove.size()),
-        QMessageBox::Yes | QMessageBox::No
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle("Konfirmasi Hapus Massal");
+    msgBox.setText(QString("Yakin ingin menghapus %1 tugas yang dicentang?").arg(indicesToRemove.size()));
+    msgBox.setIcon(QMessageBox::Question);
+    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+    msgBox.setStyleSheet(
+        "QMessageBox { background-color: #121212; }"
+        "QLabel { color: #FFFFFF; font-size: 12px; font-weight: bold; }"
+        "QPushButton { background-color: #E60000; color: white; border-radius: 4px; padding: 5px 15px; font-weight: bold; min-width: 65px; }"
+        "QPushButton:hover { background-color: #B30000; }"
         );
 
-    if (confirm != QMessageBox::Yes) {
+    if (msgBox.exec() != QMessageBox::Yes) {
         return;
     }
 
-    // 3. Urutkan indeks dari BESAR ke KECIL agar tidak salah hapus urutan vector
     std::sort(indicesToRemove.begin(), indicesToRemove.end(), std::greater<int>());
 
-    // 4. Hapus dari data asli
     for (int index : indicesToRemove) {
         tasks.removeAt(index);
     }
 
-    // 5. Simpan dan segarkan halaman
     saveTasks();
-
     searchBox->clear();
     categoryBox->setCurrentText("Semua Kategori");
     priorityBox->setCurrentText("Semua Prioritas");
-
     refreshTaskList();
     buildCalendar();
     updateStats();
 
-    QMessageBox::information(this, "Berhasil", QString("%1 tugas berhasil dihapus.").arg(indicesToRemove.size()));
+    QMessageBox infoBox(this);
+    infoBox.setWindowTitle("Berhasil");
+    infoBox.setText(QString("%1 tugas berhasil dihapus.").arg(indicesToRemove.size()));
+    infoBox.setIcon(QMessageBox::Information);
+    infoBox.setStyleSheet(
+        "QMessageBox { background-color: #121212; }"
+        "QLabel { color: #FFFFFF; font-size: 12px; font-weight: bold; }"
+        "QPushButton { background-color: #00A650; color: white; border-radius: 4px; padding: 5px 15px; font-weight: bold; min-width: 65px; }"
+        );
+    infoBox.exec();
 }
 
 void MainWindow::markTaskDone()
 {
     int updatedCount = 0;
 
-    // Loop semua item di list dan periksa status centangnya
-    for (int i = 0; i < taskList->count(); ++i) {
-        QListWidgetItem *item = taskList->item(i);
+    for (int i = 0; i < taskList->rowCount(); ++i) {
+        QTableWidgetItem *item = taskList->item(i, 0);
         if (item && item->checkState() == Qt::Checked) {
             int index = item->data(Qt::UserRole).toInt();
             if (index >= 0 && index < tasks.size()) {
-                tasks[index].isDone = !tasks[index].isDone;
+                tasks[index].isDone = true;
+                tasks[index].isAlarmActive = false;
                 updatedCount++;
             }
         }
     }
 
     if (updatedCount == 0) {
-        QMessageBox::warning(this, "Peringatan", "Centang satu atau beberapa kotak tugas terlebih dahulu.");
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle("Peringatan");
+        msgBox.setText("Centang satu atau beberapa kotak tugas terlebih dahulu.");
+        msgBox.setIcon(QMessageBox::Warning);
+        msgBox.setStyleSheet(
+            "QMessageBox { background-color: #121212; }"
+            "QLabel { color: #FFFFFF; font-size: 12px; font-weight: bold; }"
+            "QPushButton { background-color: #2979FF; color: white; border-radius: 4px; padding: 5px 15px; font-weight: bold; min-width: 65px; }"
+            "QPushButton:hover { background-color: #1565C0; }"
+            );
+        msgBox.exec();
         return;
     }
 
-    // Simpan perubahan dan refresh tampilan
     saveTasks();
     refreshTaskList();
     buildCalendar();
@@ -681,19 +886,11 @@ void MainWindow::markTaskDone()
 
 void MainWindow::refreshTaskList()
 {
-    if (!taskList || !searchBox || !categoryBox || !priorityBox) {
+    if (!taskList || !searchBox || !categoryBox || !priorityBox)
         return;
-    }
 
-    int selectedIndex = -1;
-
-    if (taskList->currentItem()) {
-        selectedIndex = taskList->currentItem()->data(Qt::UserRole).toInt();
-    }
-
-    // Blokir sinyal agar tidak memicu itemChanged secara berulang saat proses clearing
     taskList->blockSignals(true);
-    taskList->clear();
+    taskList->setRowCount(0);
 
     QString search = searchBox->text().trimmed().toLower();
     QString selectedCategory = categoryBox->currentText();
@@ -705,52 +902,85 @@ void MainWindow::refreshTaskList()
         bool searchOk = search.isEmpty() || task.title.toLower().contains(search);
         bool categoryOk = selectedCategory == "Semua Kategori" || task.category == selectedCategory;
         bool priorityOk = selectedPriority == "Semua Prioritas" || task.priority == selectedPriority;
+        bool historyFilterOk = showHistory ? task.isDone : !task.isDone;
 
-        bool historyFilterOk = false;
-        if (showHistory) {
-            historyFilterOk = task.isDone;
+        if (!searchOk || !categoryOk || !priorityOk || !historyFilterOk)
+            continue;
+
+        int row = taskList->rowCount();
+        taskList->insertRow(row);
+
+        // Kolom 0: Checkbox
+        QTableWidgetItem *checkItem = new QTableWidgetItem;
+        checkItem->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        checkItem->setCheckState(task.isAlarmActive ? Qt::Checked : Qt::Unchecked);
+        checkItem->setData(Qt::UserRole, i);
+        checkItem->setTextAlignment(Qt::AlignCenter);
+        taskList->setItem(row, 0, checkItem);
+
+        // Kolom 1: Nama Tugas
+        QTableWidgetItem *titleItem = new QTableWidgetItem(task.title);
+        titleItem->setData(Qt::UserRole, i);
+        taskList->setItem(row, 1, titleItem);
+
+        // Kolom 2: Kategori
+        QTableWidgetItem *catItem = new QTableWidgetItem(task.category);
+        catItem->setTextAlignment(Qt::AlignCenter);
+        taskList->setItem(row, 2, catItem);
+
+        // Kolom 3: Prioritas
+        QTableWidgetItem *priItem = new QTableWidgetItem(task.priority);
+        priItem->setTextAlignment(Qt::AlignCenter);
+        taskList->setItem(row, 3, priItem);
+
+        // Kolom 4: Tanggal
+        QTableWidgetItem *dateItem = new QTableWidgetItem(task.reminderDate.toString("dd MMM yyyy"));
+        dateItem->setTextAlignment(Qt::AlignCenter);
+        taskList->setItem(row, 4, dateItem);
+
+        // Kolom 5: Waktu Kerjakan
+        QTableWidgetItem *workTimeItem = new QTableWidgetItem(task.workTime.toString("hh:mm"));
+        workTimeItem->setTextAlignment(Qt::AlignCenter);
+        taskList->setItem(row, 5, workTimeItem);
+
+        // Kolom 6: Deadline
+        QTableWidgetItem *timeItem = new QTableWidgetItem(task.reminderTime.toString("hh:mm"));
+        timeItem->setTextAlignment(Qt::AlignCenter);
+        taskList->setItem(row, 6, timeItem);
+
+        // Kolom 7: Status
+        QString statusText;
+        if (task.isDone) {
+            statusText = "Selesai";
         } else {
-            historyFilterOk = !task.isDone;
+            QDateTime now = QDateTime::currentDateTime();
+            QDateTime deadline(task.reminderDate, task.reminderTime);
+            statusText = (now > deadline) ? "Terlambat" : "Belum Selesai";
+        }
+        QTableWidgetItem *statusItem = new QTableWidgetItem(statusText);
+        statusItem->setTextAlignment(Qt::AlignCenter);
+        taskList->setItem(row, 7, statusItem);
+
+        // Warna baris
+        QColor rowColor;
+        bool late = statusText == "Terlambat";
+        if (task.isDone) {
+            rowColor = QColor("#9CA3AF");
+        } else if (late || task.priority == "Tinggi") {
+            rowColor = QColor("#EF4444");
+        } else if (task.priority == "Sedang") {
+            rowColor = QColor("#F59E0B");
+        } else {
+            rowColor = darkMode ? QColor("#93C5FD") : QColor("#1D4ED8");
         }
 
-        if (searchOk && categoryOk && priorityOk && historyFilterOk) {
-            QListWidgetItem *item = new QListWidgetItem(taskText(task));
-            item->setData(Qt::UserRole, i);
-
-            // 1. Berikan hak akses centang, aktif, dan seleksi
-            item->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
-
-            // 2. KUNCI UTAMA 1: Sinkronisasi Tampilan dengan Data Asli
-            // Jika data tugas bernilai true (tercentang), gambarkan dalam keadaan tercentang DAN berwarna biru sebaris
-            if (task.isAlarmActive) {
-                item->setCheckState(Qt::Checked);
-                item->setSelected(true);
-            } else {
-                item->setCheckState(Qt::Unchecked);
-                item->setSelected(false);
+        for (int col = 0; col < 8; col++) {
+            if (taskList->item(row, col)) {
+                taskList->item(row, col)->setForeground(rowColor);
             }
-
-            if (task.isDone) {
-                item->setForeground(Qt::gray);
-            } else if (countdownText(task) == "Terlambat") {
-                item->setForeground(QBrush(Qt::red));
-            } else if (task.priority == "Tinggi") {
-                item->setForeground(QBrush(Qt::red));
-            } else if (task.priority == "Sedang") {
-                item->setForeground(QBrush(Qt::darkYellow));
-            } else {
-                item->setForeground(QBrush(Qt::darkBlue));
-            }
-
-            taskList->addItem(item);
-
-            // Baris ini bisa dihapus atau dikomentari agar tidak merusak multi-selection:
-            // if (i == selectedIndex) {
-            //     taskList->setCurrentItem(item);
-            // }
         }
     }
-    // Buka kembali pemblokiran sinyal setelah list selesai digambar ulang
+
     taskList->blockSignals(false);
 }
 
@@ -795,33 +1025,41 @@ void MainWindow::clearCalendar()
     }
 }
 
-void MainWindow::addTaskToCalendarBox(QVBoxLayout *boxLayout, const QDate &date)
+void MainWindow::addTaskToCalendarBox(QLayout *Layout, const QDate &date)
 {
-    int shown = 0;
-
     for (const TaskData &task : tasks) {
         if (task.reminderDate == date) {
             QLabel *taskLabel = new QLabel(task.isDone ? "✓ " + task.title : "• " + task.title);
             taskLabel->setWordWrap(true);
+            taskLabel->setMaximumWidth(90);
 
-            if (task.isDone) {
-                taskLabel->setStyleSheet("background:#E5E7EB;color:#6B7280;border-radius:4px;padding:2px 4px;font-size:11px;");
-            } else if (countdownText(task) == "Terlambat") {
-                taskLabel->setStyleSheet("background:#FEE2E2;color:#991B1B;border-radius:4px;padding:2px 4px;font-size:11px;font-weight:bold;");
-            } else if (task.priority == "Tinggi") {
-                taskLabel->setStyleSheet("background:#FEE2E2;color:#991B1B;border-radius:4px;padding:2px 4px;font-size:11px;font-weight:bold;");
-            } else if (task.priority == "Sedang") {
-                taskLabel->setStyleSheet("background:#FEF3C7;color:#92400E;border-radius:4px;padding:2px 4px;font-size:11px;");
+            if (darkMode) {
+                if (task.isDone) {
+                    taskLabel->setStyleSheet("background:#374151;color:#9CA3AF;border-radius:4px;padding:2px 4px;font-size:10px;");
+                } else if (countdownText(task) == "Terlambat") {
+                    taskLabel->setStyleSheet("background:#7F1D1D;color:#FCA5A5;border-radius:4px;padding:2px 4px;font-size:10px;font-weight:bold;");
+                } else if (task.priority == "Tinggi") {
+                    taskLabel->setStyleSheet("background:#7F1D1D;color:#FCA5A5;border-radius:4px;padding:2px 4px;font-size:10px;font-weight:bold;");
+                } else if (task.priority == "Sedang") {
+                    taskLabel->setStyleSheet("background:#78350F;color:#FCD34D;border-radius:4px;padding:2px 4px;font-size:10px;");
+                } else {
+                    taskLabel->setStyleSheet("background:#1E3A5F;color:#BFDBFE;border-radius:4px;padding:2px 4px;font-size:10px;");
+                }
             } else {
-                taskLabel->setStyleSheet("background:#DBEAFE;color:#1E3A8A;border-radius:4px;padding:2px 4px;font-size:11px;");
+                if (task.isDone) {
+                    taskLabel->setStyleSheet("background:#E5E7EB;color:#6B7280;border-radius:4px;padding:2px 4px;font-size:10px;");
+                } else if (countdownText(task) == "Terlambat") {
+                    taskLabel->setStyleSheet("background:#FEE2E2;color:#991B1B;border-radius:4px;padding:2px 4px;font-size:10px;font-weight:bold;");
+                } else if (task.priority == "Tinggi") {
+                    taskLabel->setStyleSheet("background:#FEE2E2;color:#991B1B;border-radius:4px;padding:2px 4px;font-size:10px;font-weight:bold;");
+                } else if (task.priority == "Sedang") {
+                    taskLabel->setStyleSheet("background:#FEF3C7;color:#92400E;border-radius:4px;padding:2px 4px;font-size:10px;");
+                } else {
+                    taskLabel->setStyleSheet("background:#DBEAFE;color:#1E3A8A;border-radius:4px;padding:2px 4px;font-size:10px;");
+                }
             }
 
-            boxLayout->addWidget(taskLabel);
-            shown++;
-
-            if (shown == 2) {
-                break;
-            }
+            Layout->addWidget(taskLabel);
         }
     }
 }
@@ -847,16 +1085,17 @@ void MainWindow::buildCalendar()
 
     int day = 1;
 
-    for (int row = 1; row <= 6; row++) {
+    int totalRows = (startColumn + totalDays + 6) / 7;
+    for (int row = 1; row <= totalRows; row++) {
         for (int col = 0; col < 7; col++) {
             QFrame *box = new QFrame;
             box->setObjectName("dateBox");
             box->setCursor(Qt::PointingHandCursor);
-            box->setMinimumHeight(68);
+            box->setFixedHeight(90);
 
             QVBoxLayout *boxLayout = new QVBoxLayout(box);
-            boxLayout->setContentsMargins(7, 5, 7, 5);
-            boxLayout->setSpacing(3);
+            boxLayout->setContentsMargins(5, 5, 5, 5);
+            boxLayout->setSpacing(2);
 
             QLabel *number = new QLabel("");
 
@@ -864,33 +1103,58 @@ void MainWindow::buildCalendar()
                 if (day <= totalDays) {
                     QDate thisDate(currentDate.year(), currentDate.month(), day);
 
-                    box->installEventFilter(this);
-                    box->setProperty("date", thisDate);
-
                     number->setText(QString::number(day));
                     number->setObjectName("dateNumber");
-
                     boxLayout->addWidget(number);
-                    addTaskToCalendarBox(boxLayout, thisDate);
+
+                    QScrollArea *scrollArea = new QScrollArea;
+                    scrollArea->setWidgetResizable(true);
+                    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+                    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+                    scrollArea->setStyleSheet("background: transparent; border: none;");
+                    scrollArea->setFixedHeight(54);
+                    scrollArea->setFocusPolicy(Qt::NoFocus);
+
+                    QWidget *scrollContent = new QWidget;
+                    scrollContent->setStyleSheet("background: transparent;");
+                    QVBoxLayout *scrollLayout = new QVBoxLayout(scrollContent);
+                    scrollLayout->setContentsMargins(0, 0, 0, 0);
+                    scrollLayout->setSpacing(2);
+
+                    scrollArea->setAttribute(Qt::WA_TransparentForMouseEvents, false);
+                    scrollArea->setFocusPolicy(Qt::NoFocus);
+
+                    addTaskToCalendarBox(scrollLayout, thisDate);
+                    scrollLayout->addStretch();
+
+                    scrollArea->setWidget(scrollContent);
+                    boxLayout->addWidget(scrollArea);
 
                     if (thisDate == QDate::currentDate()) {
-                        box->setStyleSheet("background:#E6E4FF;border:2px solid #2563FF;border-radius:8px;");
+                        if (darkMode) {
+                            box->setStyleSheet("background:#1E2A4A;border:2px solid #2563FF;border-radius:8px;");
+                        } else {
+                            box->setStyleSheet("background:#E6E4FF;border:2px solid #2563FF;border-radius:8px;");
+                        }
                     }
-
                     day++;
                 } else {
-                    boxLayout->addWidget(number);
+                    delete box;
+                    continue;
                 }
             } else {
                 boxLayout->addWidget(number);
+                boxLayout->addStretch();
             }
 
-            boxLayout->addStretch();
             calendarGrid->addWidget(box, row, col);
         }
     }
 }
 
+// FIX: checkNotifications sekarang ada dua notifikasi:
+//      1. Waktu mengerjakan (_work)
+//      2. Deadline (_deadline) — BARU
 void MainWindow::checkNotifications()
 {
     QDateTime current = QDateTime::currentDateTime();
@@ -902,23 +1166,47 @@ void MainWindow::checkNotifications()
             continue;
         }
 
+        // --- Notifikasi WAKTU MENGERJAKAN ---
         if (task.reminderDate == today &&
-            task.reminderTime.hour() == now.hour() &&
-            task.reminderTime.minute() == now.minute()) {
+            task.workTime.isValid() &&
+            task.workTime.hour()   == now.hour() &&
+            task.workTime.minute() == now.minute()) {
 
-            QString key = task.title + current.toString("yyyyMMddHHmm");
+            QString key = task.title + current.toString("yyyyMMddHHmm") + "_work";
 
             if (!notifiedTasks.contains(key)) {
                 notifiedTasks.insert(key);
-                startAlarm(task.title);
+                startAlarm(
+                    "Waktunya mulai mengerjakan!\n\nTugas: " + task.title,
+                    false
+                    );
+            }
+        }
+
+        // --- Notifikasi DEADLINE ---
+        if (task.reminderDate == today &&
+            task.reminderTime.isValid() &&
+            task.reminderTime.hour()   == now.hour() &&
+            task.reminderTime.minute() == now.minute()) {
+
+            QString key = task.title + current.toString("yyyyMMddHHmm") + "_deadline";
+
+            if (!notifiedTasks.contains(key)) {
+                notifiedTasks.insert(key);
+                startAlarm(
+                    "DEADLINE SEKARANG! Segera selesaikan!\n\nTugas: " + task.title,
+                    true
+                    );
             }
         }
     }
 }
 
-void MainWindow::startAlarm(const QString &taskTitle)
+// FIX: startAlarm sekarang menerima parameter isDeadline
+//      untuk membedakan judul popup dan warna
+void MainWindow::startAlarm(const QString &message, bool isDeadline)
 {
-    currentAlarmTask = taskTitle;
+    currentAlarmTask = message;
 
     QApplication::alert(this);
 
@@ -932,11 +1220,16 @@ void MainWindow::startAlarm(const QString &taskTitle)
     }
 
     QMessageBox *alarmBox = new QMessageBox(this);
-    alarmBox->setWindowTitle("⏰ Alarm Tugas");
-    alarmBox->setText("Waktunya mengerjakan tugas!");
-    alarmBox->setInformativeText("Tugas: " + taskTitle);
-    alarmBox->setIcon(QMessageBox::Warning);
+    alarmBox->setWindowTitle(isDeadline ? "🚨 Deadline Tugas!" : "⏰ Alarm Tugas");
+    alarmBox->setText(message);
+    alarmBox->setIcon(isDeadline ? QMessageBox::Critical : QMessageBox::Warning);
     alarmBox->setStandardButtons(QMessageBox::Ok);
+    alarmBox->setStyleSheet(
+        "QMessageBox { background-color: #121212; }"
+        "QLabel { color: #FFFFFF; font-size: 12px; font-weight: bold; }"
+        "QPushButton { background-color: #2979FF; color: white; border-radius: 4px; padding: 5px 15px; font-weight: bold; min-width: 65px; }"
+        "QPushButton:hover { background-color: #1565C0; }"
+        );
     alarmBox->button(QMessageBox::Ok)->setText("Berhenti Alarm");
 
     connect(alarmBox, &QMessageBox::finished, this, [=]() {
@@ -996,9 +1289,9 @@ void MainWindow::showTasksByDate(const QDate &date)
             message += "• " + task.title
                        + "\nKategori: " + task.category
                        + "\nPrioritas: " + task.priority
-                       + "\nJam: " + task.reminderTime.toString("HH:mm")
+                       + "\nWaktu Kerjakan: " + task.workTime.toString("HH:mm")
+                       + "\nDeadline: " + task.reminderTime.toString("HH:mm")
                        + "\nStatus: " + QString(task.isDone ? "Selesai" : "Belum selesai")
-                       + "\nSisa waktu: " + countdownText(task)
                        + "\n\n";
         }
     }
@@ -1019,15 +1312,28 @@ void MainWindow::showTasksByDate(const QDate &date)
     }
 }
 
+// FIX: eventFilter diperbaiki agar tidak intercept klik pada widget
+//      di dalam dialog (termasuk spin button QTimeEdit)
 bool MainWindow::eventFilter(QObject *obj, QEvent *event)
 {
+    // Blokir scroll pada combobox filter
+    if ((obj == categoryBox || obj == priorityBox) && event->type() == QEvent::Wheel) {
+        return true;
+    }
+
+    // Hanya proses klik pada dateBox kalender —
+    // cek apakah obj punya properti "date" yang benar-benar QDate valid
     if (event->type() == QEvent::MouseButtonPress) {
         QVariant dateValue = obj->property("date");
 
-        if (dateValue.isValid()) {
+        // FIX: tambahkan canConvert dan isValid agar widget lain
+        //      (termasuk spin button QTimeEdit) tidak ikut ter-intercept
+        if (dateValue.isValid() && dateValue.canConvert<QDate>()) {
             QDate date = dateValue.toDate();
-            showTasksByDate(date);
-            return true;
+            if (date.isValid()) {
+                showTasksByDate(date);
+                return true;
+            }
         }
     }
 
@@ -1114,7 +1420,6 @@ void MainWindow::openScheduleManager()
     QVBoxLayout *mainLayout = new QVBoxLayout(&dialog);
     mainLayout->setSpacing(12);
 
-    // --- Semester Management ---
     QFrame *semGroup = new QFrame;
     semGroup->setObjectName("scheduleGroupBox");
     QVBoxLayout *semLayout = new QVBoxLayout(semGroup);
@@ -1163,7 +1468,6 @@ void MainWindow::openScheduleManager()
     semLayout->addLayout(semRow);
     semLayout->addWidget(activeSemLabel);
 
-    // --- Course Management ---
     QFrame *courseGroup = new QFrame;
     courseGroup->setObjectName("scheduleGroupBox");
     QVBoxLayout *courseLayout = new QVBoxLayout(courseGroup);
@@ -1182,7 +1486,7 @@ void MainWindow::openScheduleManager()
     daySelectRow->addWidget(dayCombo);
     daySelectRow->addStretch();
 
-    QListWidget *courseList = new QListWidget;
+    QTableWidget *courseList = new QTableWidget;
     courseList->setObjectName("courseList");
     courseList->setMinimumHeight(160);
 
@@ -1210,16 +1514,37 @@ void MainWindow::openScheduleManager()
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Close);
     mainLayout->addWidget(buttonBox);
 
-    // Refresh course list
     auto refreshCourseList = [&]() {
-        courseList->clear();
+        courseList->clearContents();
+        courseList->setRowCount(0);
+        courseList->setColumnCount(3);
+        courseList->setHorizontalHeaderLabels({"Mata Kuliah", "Mulai", "Selesai"});
+        courseList->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+        courseList->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+        courseList->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+        courseList->verticalHeader()->setVisible(false);
+        courseList->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        courseList->setSelectionBehavior(QAbstractItemView::SelectRows);
+
         int semIdx = semCombo->currentIndex();
         int dayIdx = dayCombo->currentIndex();
         if (semIdx >= 0 && semIdx < semesters.size() && dayIdx >= 0 && dayIdx < 7) {
             const auto &courses = semesters[semIdx].weeklySchedule[dayIdx];
             for (int i = 0; i < courses.size(); i++) {
                 const auto &c = courses[i];
-                courseList->addItem(c.name + "  (" + c.startTime.toString("HH:mm") + " - " + c.endTime.toString("HH:mm") + ")");
+                int row = courseList->rowCount();
+                courseList->insertRow(row);
+
+                QTableWidgetItem *nameItem = new QTableWidgetItem(c.name);
+                QTableWidgetItem *startItem = new QTableWidgetItem(c.startTime.toString("HH:mm"));
+                QTableWidgetItem *endItem = new QTableWidgetItem(c.endTime.toString("HH:mm"));
+
+                startItem->setTextAlignment(Qt::AlignCenter);
+                endItem->setTextAlignment(Qt::AlignCenter);
+
+                courseList->setItem(row, 0, nameItem);
+                courseList->setItem(row, 1, startItem);
+                courseList->setItem(row, 2, endItem);
             }
         }
         if (semCombo->currentIndex() == activeSemesterIndex) {
@@ -1240,7 +1565,6 @@ void MainWindow::openScheduleManager()
         refreshCourseList();
     });
 
-    // Add semester
     connect(addSemBtn, &QPushButton::clicked, [&]() {
         bool ok;
         QString name = QInputDialog::getText(&dialog, "Tambah Semester", "Nama semester:", QLineEdit::Normal, "", &ok);
@@ -1255,7 +1579,6 @@ void MainWindow::openScheduleManager()
         }
     });
 
-    // Rename semester
     connect(renameSemBtn, &QPushButton::clicked, [&]() {
         int idx = semCombo->currentIndex();
         if (idx < 0 || idx >= semesters.size()) return;
@@ -1268,7 +1591,6 @@ void MainWindow::openScheduleManager()
         }
     });
 
-    // Delete semester
     connect(deleteSemBtn, &QPushButton::clicked, [&]() {
         int idx = semCombo->currentIndex();
         if (idx < 0 || idx >= semesters.size()) return;
@@ -1292,7 +1614,6 @@ void MainWindow::openScheduleManager()
         scheduleChanged();
     });
 
-    // Activate semester
     connect(activateSemBtn, &QPushButton::clicked, [&]() {
         int idx = semCombo->currentIndex();
         if (idx < 0 || idx >= semesters.size()) return;
@@ -1301,7 +1622,6 @@ void MainWindow::openScheduleManager()
         scheduleChanged();
     });
 
-    // Add course
     connect(addCourseBtn, &QPushButton::clicked, [&]() {
         int semIdx = semCombo->currentIndex();
         int dayIdx = dayCombo->currentIndex();
@@ -1318,8 +1638,10 @@ void MainWindow::openScheduleManager()
         nameInput->setPlaceholderText("Nama mata kuliah");
         QTimeEdit *startInput = new QTimeEdit(QTime(7, 0));
         startInput->setDisplayFormat("HH:mm");
+        startInput->setWrapping(true);
         QTimeEdit *endInput = new QTimeEdit(QTime(9, 0));
         endInput->setDisplayFormat("HH:mm");
+        endInput->setWrapping(true);
 
         form->addRow("Matkul:", nameInput);
         form->addRow("Mulai:", startInput);
@@ -1348,7 +1670,6 @@ void MainWindow::openScheduleManager()
         }
     });
 
-    // Edit course
     connect(editCourseBtn, &QPushButton::clicked, [&]() {
         int semIdx = semCombo->currentIndex();
         int dayIdx = dayCombo->currentIndex();
@@ -1371,8 +1692,10 @@ void MainWindow::openScheduleManager()
         QLineEdit *nameInput = new QLineEdit(ce.name);
         QTimeEdit *startInput = new QTimeEdit(ce.startTime);
         startInput->setDisplayFormat("HH:mm");
+        startInput->setWrapping(true);
         QTimeEdit *endInput = new QTimeEdit(ce.endTime);
         endInput->setDisplayFormat("HH:mm");
+        endInput->setWrapping(true);
 
         form->addRow("Matkul:", nameInput);
         form->addRow("Mulai:", startInput);
@@ -1399,7 +1722,6 @@ void MainWindow::openScheduleManager()
         }
     });
 
-    // Delete course
     connect(deleteCourseBtn, &QPushButton::clicked, [&]() {
         int semIdx = semCombo->currentIndex();
         int dayIdx = dayCombo->currentIndex();
@@ -1514,6 +1836,7 @@ void MainWindow::saveTasks()
         settings.setValue("category", tasks[i].category);
         settings.setValue("priority", tasks[i].priority);
         settings.setValue("date", tasks[i].reminderDate);
+        settings.setValue("workTime", tasks[i].workTime);
         settings.setValue("time", tasks[i].reminderTime);
         settings.setValue("done", tasks[i].isDone);
     }
@@ -1537,6 +1860,7 @@ void MainWindow::loadTasks()
         task.category = settings.value("category").toString();
         task.priority = settings.value("priority").toString();
         task.reminderDate = settings.value("date").toDate();
+        task.workTime = settings.value("workTime").toTime();
         task.reminderTime = settings.value("time").toTime();
         task.isDone = settings.value("done").toBool();
 
@@ -1601,33 +1925,13 @@ void MainWindow::applyTheme()
                 font-weight:bold;
             }
 
-            QPushButton#addBtn {
-                background:#2563FF;
-            }
-
-            QPushButton#editBtn {
-                background:#F59E0B;
-            }
-
-            QPushButton#listBtn {
-                background:#EF4444;
-            }
-
-            QPushButton#doneBtn {
-                background:#00A650;
-            }
-
-            QPushButton#notifBtn {
-                background:#9817F4;
-            }
-
-            QPushButton#soundBtn {
-                background:#0EA5E9;
-            }
-
-            QPushButton#themeBtn {
-                background:#111827;
-            }
+            QPushButton#addBtn { background:#2563FF; }
+            QPushButton#editBtn { background:#F59E0B; }
+            QPushButton#listBtn { background:#EF4444; }
+            QPushButton#doneBtn { background:#00A650; }
+            QPushButton#notifBtn { background:#9817F4; }
+            QPushButton#soundBtn { background:#0EA5E9; }
+            QPushButton#themeBtn { background:#111827; }
 
             QPushButton#navBtn {
                 background:transparent;
@@ -1643,8 +1947,7 @@ void MainWindow::applyTheme()
                 font-weight:bold;
             }
 
-            QComboBox,
-            QLineEdit {
+            QComboBox, QLineEdit {
                 background:white;
                 color:black;
                 border:1px solid #DDDDDD;
@@ -1662,23 +1965,35 @@ void MainWindow::applyTheme()
                 outline:none;
             }
 
-            QListWidget#taskList {
+            QTableWidget#taskList {
                 background:white;
                 color:black;
                 border:1px solid #E5E7EB;
                 border-radius:10px;
-                padding:6px;
-                font-size:14px;
+                font-size:11px;
+                gridline-color:#E5E7EB;
             }
-
-            QListWidget#taskList::item {
-                padding:8px;
-                border-radius:6px;
-            }
-
-            QListWidget#taskList::item:selected {
+            QTableWidget#taskList::item { padding:6px; }
+            QTableWidget#taskList::item:selected {
                 background:#DBEAFE;
                 color:black;
+            }
+            QHeaderView::section {
+                background:#F1F5F9;
+                color:black;
+                font-weight:bold;
+                font-size:11px;
+                padding:4px;
+                border:1px solid #E5E7EB;
+            }
+            QScrollBar:vertical {
+                background:#F1F5F9;
+                width:8px;
+                border-radius:4px;
+            }
+            QScrollBar::handle:vertical {
+                background:#CBD5E1;
+                border-radius:4px;
             }
 
             QLabel#monthTitle {
@@ -1731,31 +2046,15 @@ void MainWindow::applyTheme()
                 padding:6px;
             }
 
-            QLabel#scheduleTitle {
-                font-size:13px;
-                font-weight:bold;
-                color:#14243D;
-            }
-
-            QLabel#semesterNameLabel {
-                font-size:11px;
-                color:#2563EB;
-                font-weight:bold;
-            }
+            QLabel#scheduleTitle { font-size:13px; font-weight:bold; color:#14243D; }
+            QLabel#semesterNameLabel { font-size:11px; color:#2563EB; font-weight:bold; }
 
             QPushButton#manageScheduleBtn {
-                background:#2563FF;
-                color:white;
-                border:none;
-                border-radius:5px;
-                padding:4px 10px;
-                font-size:11px;
-                font-weight:bold;
+                background:#2563FF; color:white; border:none;
+                border-radius:5px; padding:4px 10px;
+                font-size:11px; font-weight:bold;
             }
-
-            QPushButton#manageScheduleBtn:hover {
-                background:#1D4ED8;
-            }
+            QPushButton#manageScheduleBtn:hover { background:#1D4ED8; }
 
             QFrame#scheduleDayFrame {
                 background:white;
@@ -1763,35 +2062,14 @@ void MainWindow::applyTheme()
                 border-radius:6px;
             }
 
-            QLabel#scheduleDayName {
-                font-size:10px;
-                font-weight:bold;
-                color:#334155;
-            }
-
-            QLabel#scheduleDateLabel {
-                font-size:10px;
-                color:#6B7280;
-            }
-
+            QLabel#scheduleDayName { font-size:10px; font-weight:bold; color:#334155; }
+            QLabel#scheduleDateLabel { font-size:10px; color:#6B7280; }
             QLabel#scheduleCourseLabel {
-                font-size:9px;
-                color:#1E3A8A;
-                background:#DBEAFE;
-                border-radius:3px;
-                padding:1px 3px;
+                font-size:9px; color:#1E3A8A; background:#DBEAFE;
+                border-radius:3px; padding:1px 3px;
             }
-
-            QLabel#scheduleMoreLabel {
-                font-size:9px;
-                color:#6B7280;
-                font-style:italic;
-            }
-
-            QLabel#scheduleEmptyLabel {
-                font-size:9px;
-                color:#D1D5DB;
-            }
+            QLabel#scheduleMoreLabel { font-size:9px; color:#6B7280; font-style:italic; }
+            QLabel#scheduleEmptyLabel { font-size:9px; color:#D1D5DB; }
 
             QFrame#scheduleGroupBox {
                 background:#F8FAFF;
@@ -1799,54 +2077,25 @@ void MainWindow::applyTheme()
                 border-radius:10px;
             }
 
-            QLabel#scheduleGroupTitle {
-                font-size:14px;
-                font-weight:bold;
-                color:#14243D;
-            }
+            QLabel#scheduleGroupTitle { font-size:14px; font-weight:bold; color:#14243D; }
 
             QPushButton#smBtn {
-                background:#2563FF;
-                color:white;
-                border:none;
-                border-radius:5px;
-                padding:5px 10px;
-                font-size:11px;
-                font-weight:bold;
+                background:#2563FF; color:white; border:none;
+                border-radius:5px; padding:5px 10px;
+                font-size:11px; font-weight:bold;
             }
+            QPushButton#smBtn:hover { background:#1D4ED8; }
 
-            QPushButton#smBtn:hover {
-                background:#1D4ED8;
-            }
+            QLabel#activeSemLabel { font-size:12px; color:#00A650; font-weight:bold; }
 
-            QLabel#activeSemLabel {
-                font-size:12px;
-                color:#00A650;
-                font-weight:bold;
+            QTableWidget#courseList {
+                background:white; color:black;
+                border:1px solid #E5E7EB; border-radius:8px; font-size:13px;
             }
+            QTableWidget#courseList::item { padding:6px; border-radius:4px; }
+            QTableWidget#courseList::item:selected { background:#DBEAFE; color:black; }
 
-            QListWidget#courseList {
-                background:white;
-                color:black;
-                border:1px solid #E5E7EB;
-                border-radius:8px;
-                font-size:13px;
-            }
-
-            QListWidget#courseList::item {
-                padding:6px;
-                border-radius:4px;
-            }
-
-            QListWidget#courseList::item:selected {
-                background:#DBEAFE;
-                color:black;
-            }
-
-            QScrollArea {
-                background:transparent;
-                border:none;
-            }
+            QScrollArea { background:transparent; border:none; }
         )");
     } else {
         setStyleSheet(R"(
@@ -1855,280 +2104,140 @@ void MainWindow::applyTheme()
                 font-family:Arial;
             }
 
-            QLabel#title {
-                font-size:30px;
-                font-weight:800;
-                color:white;
-            }
+            QLabel#title { font-size:30px; font-weight:800; color:white; }
+            QLabel#subtitle { font-size:16px; color:#CBD5E1; }
+            QLabel#smallTitle { font-size:15px; font-weight:bold; color:white; }
 
-            QLabel#subtitle {
-                font-size:16px;
-                color:#CBD5E1;
-            }
-
-            QLabel#smallTitle {
-                font-size:15px;
-                font-weight:bold;
-                color:white;
-            }
-
-            QFrame#card,
-            QFrame#panel,
-            QFrame#calendarPanel {
+            QFrame#card, QFrame#panel, QFrame#calendarPanel {
                 background:#1E293B;
                 border-radius:14px;
                 border:1px solid #334155;
             }
 
-            QLabel#cardNumber {
-                font-size:24px;
-                font-weight:bold;
-            }
-
-            QLabel#cardText {
-                font-size:14px;
-                color:#CBD5E1;
-            }
+            QLabel#cardNumber { font-size:24px; font-weight:bold; }
+            QLabel#cardText { font-size:14px; color:#CBD5E1; }
 
             QPushButton {
-                border:none;
-                border-radius:9px;
-                padding:9px 12px;
-                color:white;
-                font-size:14px;
-                font-weight:bold;
+                border:none; border-radius:9px;
+                padding:9px 12px; color:white;
+                font-size:14px; font-weight:bold;
             }
 
-            QPushButton#addBtn {
-                background:#2563FF;
+            QPushButton#addBtn { background:#2563FF; }
+            QPushButton#editBtn { background:#F59E0B; }
+            QPushButton#listBtn { background:#EF4444; }
+            QPushButton#doneBtn { background:#00A650; }
+            QPushButton#notifBtn { background:#9817F4; }
+            QPushButton#soundBtn { background:#0EA5E9; }
+            QPushButton#themeBtn { background:#475569; }
+
+            QPushButton#navBtn, QPushButton#todayBtn {
+                background:transparent; color:white;
+                font-size:18px; font-weight:bold;
             }
 
-            QPushButton#editBtn {
-                background:#F59E0B;
-            }
-
-            QPushButton#listBtn {
-                background:#EF4444;
-            }
-
-            QPushButton#doneBtn {
-                background:#00A650;
-            }
-
-            QPushButton#notifBtn {
-                background:#9817F4;
-            }
-
-            QPushButton#soundBtn {
-                background:#0EA5E9;
-            }
-
-            QPushButton#themeBtn {
-                background:#475569;
-            }
-
-            QPushButton#navBtn,
-            QPushButton#todayBtn {
-                background:transparent;
-                color:white;
-                font-size:18px;
-                font-weight:bold;
-            }
-
-            QComboBox,
-            QLineEdit {
-                background:#0F172A;
-                color:white;
-                border:1px solid #475569;
-                border-radius:10px;
-                padding:8px 14px;
-                font-size:14px;
+            QComboBox, QLineEdit {
+                background:#0F172A; color:white;
+                border:1px solid #475569; border-radius:10px;
+                padding:8px 14px; font-size:14px;
             }
 
             QComboBox QAbstractItemView {
-                background:#0F172A;
-                color:white;
+                background:#0F172A; color:white;
                 selection-background-color:#334155;
                 selection-color:white;
-                border:1px solid #475569;
-                outline:none;
+                border:1px solid #475569; outline:none;
             }
 
-            QListWidget#taskList {
-                background:#0F172A;
-                color:white;
-                border:1px solid #475569;
-                border-radius:10px;
-                padding:6px;
-                font-size:14px;
+            QTableWidget#taskList {
+                background:#2D3748; color:white;
+                border:1px solid #475569; border-radius:10px;
+                font-size:11px; gridline-color:#475569;
+            }
+            QTableWidget#taskList::item { padding:6px; color:white; }
+            QTableWidget#taskList::item:selected { background:#334155; color:white; }
+
+            QHeaderView::section {
+                background:#263548; color:white;
+                font-weight:bold; font-size:11px;
+                padding:4px; border:1px solid #475569;
+            }
+            QScrollBar:vertical {
+                background:#1E293B; width:8px; border-radius:4px;
+            }
+            QScrollBar::handle:vertical {
+                background:#475569; border-radius:4px;
             }
 
-            QListWidget#taskList::item {
-                padding:8px;
-                border-radius:6px;
-            }
-
-            QListWidget#taskList::item:selected {
-                background:#334155;
-                color:white;
-            }
-
-            QLabel#monthTitle,
-            QLabel#dayName,
-            QLabel#dateNumber {
-                color:white;
-                font-weight:bold;
+            QLabel#monthTitle, QLabel#dayName, QLabel#dateNumber {
+                color:white; font-weight:bold;
             }
 
             QFrame#dateBox {
-                background:#1E293B;
-                border:1px solid #475569;
-                border-radius:8px;
-                min-height:88px;
+                background:#1E293B; border:1px solid #475569;
+                border-radius:8px; min-height:88px;
             }
-
             QFrame#dateBox:hover {
-                background:#243044;
-                border:1px solid #60A5FA;
+                background:#243044; border:1px solid #60A5FA;
             }
 
             QProgressBar {
-                border:1px solid #475569;
-                border-radius:8px;
-                height:18px;
-                background:#0F172A;
-                color:white;
-                text-align:center;
+                border:1px solid #475569; border-radius:8px;
+                height:18px; background:#0F172A; color:white; text-align:center;
             }
-
-            QProgressBar::chunk {
-                background:#22C55E;
-                border-radius:8px;
-            }
+            QProgressBar::chunk { background:#22C55E; border-radius:8px; }
 
             QFrame#scheduleFrame {
-                background:#1E293B;
-                border:1px solid #334155;
-                border-radius:10px;
-                padding:6px;
+                background:#1E293B; border:1px solid #334155;
+                border-radius:10px; padding:6px;
             }
 
-            QLabel#scheduleTitle {
-                font-size:13px;
-                font-weight:bold;
-                color:white;
-            }
-
-            QLabel#semesterNameLabel {
-                font-size:11px;
-                color:#60A5FA;
-                font-weight:bold;
-            }
+            QLabel#scheduleTitle { font-size:13px; font-weight:bold; color:white; }
+            QLabel#semesterNameLabel { font-size:11px; color:#60A5FA; font-weight:bold; }
 
             QPushButton#manageScheduleBtn {
-                background:#2563FF;
-                color:white;
-                border:none;
-                border-radius:5px;
-                padding:4px 10px;
-                font-size:11px;
-                font-weight:bold;
+                background:#2563FF; color:white; border:none;
+                border-radius:5px; padding:4px 10px;
+                font-size:11px; font-weight:bold;
             }
-
-            QPushButton#manageScheduleBtn:hover {
-                background:#1D4ED8;
-            }
+            QPushButton#manageScheduleBtn:hover { background:#1D4ED8; }
 
             QFrame#scheduleDayFrame {
-                background:#0F172A;
-                border:1px solid #475569;
-                border-radius:6px;
+                background:#0F172A; border:1px solid #475569; border-radius:6px;
             }
 
-            QLabel#scheduleDayName {
-                font-size:10px;
-                font-weight:bold;
-                color:#CBD5E1;
-            }
-
-            QLabel#scheduleDateLabel {
-                font-size:10px;
-                color:#94A3B8;
-            }
-
+            QLabel#scheduleDayName { font-size:10px; font-weight:bold; color:#CBD5E1; }
+            QLabel#scheduleDateLabel { font-size:10px; color:#94A3B8; }
             QLabel#scheduleCourseLabel {
-                font-size:9px;
-                color:#BFDBFE;
-                background:#1E3A5F;
-                border-radius:3px;
-                padding:1px 3px;
+                font-size:9px; color:#BFDBFE; background:#1E3A5F;
+                border-radius:3px; padding:1px 3px;
             }
-
-            QLabel#scheduleMoreLabel {
-                font-size:9px;
-                color:#94A3B8;
-                font-style:italic;
-            }
-
-            QLabel#scheduleEmptyLabel {
-                font-size:9px;
-                color:#475569;
-            }
+            QLabel#scheduleMoreLabel { font-size:9px; color:#94A3B8; font-style:italic; }
+            QLabel#scheduleEmptyLabel { font-size:9px; color:#475569; }
 
             QFrame#scheduleGroupBox {
-                background:#1E293B;
-                border:1px solid #334155;
-                border-radius:10px;
+                background:#1E293B; border:1px solid #334155; border-radius:10px;
             }
 
-            QLabel#scheduleGroupTitle {
-                font-size:14px;
-                font-weight:bold;
-                color:white;
-            }
+            QLabel#scheduleGroupTitle { font-size:14px; font-weight:bold; color:white; }
 
             QPushButton#smBtn {
-                background:#2563FF;
-                color:white;
-                border:none;
-                border-radius:5px;
-                padding:5px 10px;
-                font-size:11px;
-                font-weight:bold;
+                background:#2563FF; color:white; border:none;
+                border-radius:5px; padding:5px 10px;
+                font-size:11px; font-weight:bold;
             }
+            QPushButton#smBtn:hover { background:#1D4ED8; }
 
-            QPushButton#smBtn:hover {
-                background:#1D4ED8;
-            }
+            QLabel#activeSemLabel { font-size:12px; color:#22C55E; font-weight:bold; }
 
-            QLabel#activeSemLabel {
-                font-size:12px;
-                color:#22C55E;
-                font-weight:bold;
+            QTableWidget#courseList {
+                background:#2D3748; color:white;
+                border:1px solid #475569; border-radius:8px; font-size:13px;
             }
+            QTableWidget#courseList::item { padding:6px; border-radius:4px; color:white; }
+            QTableWidget#courseList::item:selected { background:#334155; color:white; }
 
-            QListWidget#courseList {
-                background:#0F172A;
-                color:white;
-                border:1px solid #475569;
-                border-radius:8px;
-                font-size:13px;
-            }
-
-            QListWidget#courseList::item {
-                padding:6px;
-                border-radius:4px;
-            }
-
-            QListWidget#courseList::item:selected {
-                background:#334155;
-                color:white;
-            }
-
-            QScrollArea {
-                background:transparent;
-                border:none;
-            }
+            QScrollArea { background:transparent; border:none; }
         )");
     }
 }
